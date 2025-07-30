@@ -98,8 +98,22 @@ class ApiClient {
     return response;
   }
 
+  async loginByUsername(username) {
+    const response = await this.post('/auth/login-by-username', { username });
+    return response;
+  }
+
   async getProfile() {
     return this.get('/auth/profile');
+  }
+
+  // Персонажи пользователя
+  async getUserCharacters(userId) {
+    return this.get(`/games/user/${userId}/characters`);
+  }
+
+  async createClassicCharacter(userId, characterData) {
+    return this.post(`/games/user/${userId}/characters`, characterData);
   }
 
   logout() {

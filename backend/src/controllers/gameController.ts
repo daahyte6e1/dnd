@@ -344,6 +344,68 @@ const updateGameState = async (req: Request<{ gameId: string }, {}, any>, res: R
   }
 };
 
+// Получение всех персонажей пользователя
+const getUserCharacters = async (req: Request<{ userId: string }>, res: Response): Promise<void> => {
+  try {
+    const { userId } = req.params;
+    if (!userId) {
+      res.status(400).json({ error: 'Не передан userId' });
+      return;
+    }
+    const players = await global.gameService.models.Player.findAll({ where: { userId } });
+    const playerIds = players.map((p: any) => p.id);
+    const characters = await global.gameService.models.Character.findAll({ where: { playerId: playerIds } });
+    res.json({ characters });
+  } catch (error) {
+    console.error('Ошибка получения персонажей пользователя:', error);
+    res.status(500).json({ error: 'Ошибка при получении персонажей пользователя' });
+  }
+};
+
+// Создание классического персонажа для пользователя
+const createClassicCharacter = async (req: Request<{ userId: string }>, res: Response): Promise<void> => {
+  try {
+    const { userId } = req.params;
+    const { name, characterClass } = req.body;
+    if (!userId || !name || !characterClass) {
+      res.status(400).json({ error: 'Не переданы userId, name или characterClass' });
+      return;
+    }
+    // Находим Player для пользователя (или создаём, если нужно)
+    let player = await global.gameService.models.Player.findOne({ where: { userId } });
+    if (!player) {
+      player = await global.gameService.models.Player.create({ userId, gameId: null, isReady: false, isOnline: false, lastSeen: new Date() });
+    }
+    // Дефолтные характеристики DnD
+    const defaultStats = {
+      strength: 15,
+      dexterity: 14,
+      constitution: 13,
+      intelligence: 12,
+      wisdom: 10,
+      charisma: 8
+    };
+    const character = await global.gameService.models.Character.create({
+      playerId: player.id,
+      name,
+      characterClass,
+      level: 1,
+      stats: defaultStats,
+      hp: 12,
+      maxHp: 12,
+      position: { x: 0, y: 0 },
+      inventory: [],
+      experience: 0,
+      initiative: 0,
+      isAlive: true
+    });
+    res.status(201).json({ character });
+  } catch (error) {
+    console.error('Ошибка создания классического персонажа:', error);
+    res.status(500).json({ error: 'Ошибка при создании персонажа' });
+  }
+};
+
 export {
   createGame,
   getGames,
@@ -354,5 +416,7 @@ export {
   rollDice,
   interactWithTile,
   getTileInfo,
-  updateGameState
+  updateGameState,
+  getUserCharacters,
+  createClassicCharacter
 }; 

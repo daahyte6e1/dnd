@@ -109,6 +109,32 @@ const login = async (req: Request<{}, {}, LoginRequest>, res: Response): Promise
   }
 };
 
+// Вход по username (без пароля)
+const loginByUsername = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { username } = req.body;
+    if (!username) {
+      res.status(400).json({ error: 'Не передан username' });
+      return;
+    }
+    const user = await User.findOne({ where: { username } });
+    if (!user) {
+      res.status(404).json({ error: 'Пользователь не найден' });
+      return;
+    }
+    res.json({
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email
+      }
+    });
+  } catch (error) {
+    console.error('Ошибка входа по username:', error);
+    res.status(500).json({ error: 'Ошибка при входе по username' });
+  }
+};
+
 // Получение профиля пользователя
 const getProfile = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -131,5 +157,6 @@ const getProfile = async (req: AuthRequest, res: Response): Promise<void> => {
 export {
   register,
   login,
-  getProfile
+  getProfile,
+  loginByUsername
 }; 

@@ -23,7 +23,7 @@ interface PlayerData {
   id: string;
   name: string;
   isHost: boolean;
-  gameId: string;
+  gameId: string | null;
   isReady: boolean;
   isOnline: boolean;
   character: {
@@ -65,10 +65,26 @@ type LogType = 'action' | 'combat' | 'system' | 'chat';
 class GameService {
   private worldGenerator: WorldGenerator;
   private diceService: DiceService;
+  public models: {
+    Player: typeof Player;
+    Character: typeof Character;
+    Game: typeof Game;
+    World: typeof World;
+    GameLog: typeof GameLog;
+    User: typeof User;
+  };
 
   constructor() {
     this.worldGenerator = new WorldGenerator();
     this.diceService = new DiceService();
+    this.models = {
+      Player,
+      Character,
+      Game,
+      World,
+      GameLog,
+      User
+    };
   }
 
   // Генерация мира

@@ -10,6 +10,9 @@ router.post('/register', authController.register);
 // Вход
 router.post('/login', authController.login);
 
+// Вход по username (без пароля)
+router.post('/login-by-username', authController.loginByUsername);
+
 // Получение профиля (требует аутентификации)
 router.get('/profile', auth, authController.getProfile);
 

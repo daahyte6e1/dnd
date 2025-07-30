@@ -4,7 +4,7 @@ import { sequelize } from '../config/database';
 interface PlayerAttributes {
   id: string;
   userId: string;
-  gameId: string;
+  gameId: string | null;
   isReady: boolean;
   isOnline: boolean;
   lastSeen: Date;
@@ -28,7 +28,7 @@ const Player = sequelize.define<PlayerInstance>('Player', {
   },
   gameId: {
     type: DataTypes.UUID,
-    allowNull: false
+    allowNull: true
   },
   isReady: {
     type: DataTypes.BOOLEAN,
