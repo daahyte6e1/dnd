@@ -154,9 +154,54 @@ const getProfile = async (req: AuthRequest, res: Response): Promise<void> => {
   }
 };
 
+// Автоматическая регистрация пользователя по username (если не существует)
+const registerOrLoginByUsername = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { username } = req.body;
+    if (!username) {
+      res.status(400).json({ error: 'Не передан username' });
+      return;
+    }
+
+    // Ищем пользователя
+    let user = await User.findOne({ where: { username } });
+    
+    // Если пользователь не найден, создаем нового
+    if (!user) {
+      // Генерируем случайный email для нового пользователя
+      const randomEmail = `${username}@temp.local`;
+      
+      // Создаем нового пользователя с временным паролем
+      user = await User.create({
+        username,
+        email: randomEmail,
+        password: Math.random().toString(36).substring(2, 15) // Временный пароль
+      });
+      
+      console.log(`Автоматически зарегистрирован новый пользователь: ${username}`);
+    }
+
+    const token = generateToken(user);
+
+    res.json({
+      message: user.createdAt === user.updatedAt ? 'Пользователь зарегистрирован' : 'Успешный вход',
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email
+      }
+    });
+  } catch (error) {
+    console.error('Ошибка автоматической регистрации/входа:', error);
+    res.status(500).json({ error: 'Ошибка при автоматической регистрации/входе' });
+  }
+};
+
 export {
   register,
   login,
   getProfile,
-  loginByUsername
+  loginByUsername,
+  registerOrLoginByUsername
 }; 

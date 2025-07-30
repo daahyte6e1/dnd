@@ -73,13 +73,19 @@ const HomePage = () => {
     setError('');
 
     try {
-      const response = await apiClient.loginByUsername(username);
+      // Используем новый метод для автоматической регистрации/входа
+      const response = await apiClient.registerOrLoginByUsername(username);
       setUserId(response.user.id);
       setIsAuthenticated(true);
       
       // Загружаем персонажей пользователя
       const charactersResponse = await apiClient.getUserCharacters(response.user.id);
       setCharacters(charactersResponse.characters || []);
+      
+      // Показываем сообщение о результате
+      if (response.message.includes('зарегистрирован')) {
+        console.log('Новый пользователь автоматически зарегистрирован');
+      }
     } catch (err) {
       setError(err.message || 'Ошибка авторизации');
     } finally {

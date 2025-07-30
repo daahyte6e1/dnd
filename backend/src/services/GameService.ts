@@ -145,6 +145,38 @@ class GameService {
     }
   }
 
+  // Автоматическая регистрация пользователя
+  async registerUserIfNotExists(userData: { username: string; email?: string }): Promise<any> {
+    try {
+      console.log(`🔍 Проверка существования пользователя: ${userData.username}`);
+      
+      // Ищем пользователя по username
+      let user = await User.findOne({ 
+        where: { username: userData.username }
+      });
+
+      if (!user) {
+        console.log(`📝 Создание нового пользователя: ${userData.username}`);
+        
+        // Создаем нового пользователя
+        user = await User.create({
+          username: userData.username,
+          email: userData.email || `${userData.username}@temp.com`,
+          password: 'temp_password_123', // Временный пароль
+          isActive: true
+        });
+
+        console.log(`✅ Пользователь создан: ${user.id}`);
+      } else {
+        console.log(`✅ Пользователь найден: ${user.id}`);
+      }
+
+      return user;
+    } catch (error: any) {
+      throw new Error(`Ошибка регистрации пользователя: ${error.message}`);
+    }
+  }
+
   // Подключение к игре
   async joinGame(gameName: string, playerData: JoinGameData): Promise<{ game: GameData; player: PlayerData; isNewPlayer: boolean }> {
     try {
@@ -170,17 +202,77 @@ class GameService {
         throw new Error('Игра заполнена');
       }
 
-      // Создаем временного пользователя для игрока
-      const tempUser = await User.create({
-        username: `player_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        email: `temp_player_${Date.now()}@temp.com`,
-        password: 'temp_password_123',
-        isActive: true
+      // Автоматически регистрируем пользователя, если его нет
+      const user = await this.registerUserIfNotExists({
+        username: playerData.name,
+        email: `${playerData.name}@temp.com`
       });
 
-      // Создаем игрока
+      // Проверяем, есть ли уже игрок с таким пользователем в этой игре
+      const existingPlayer = await Player.findOne({
+        where: { 
+          userId: user.id,
+          gameId: game.id
+        },
+        include: [{ model: Character, as: 'character' }]
+      });
+
+      if (existingPlayer) {
+        console.log(`🔄 Игрок уже в игре: ${existingPlayer.id}`);
+        
+        // Обновляем статус онлайн
+        await existingPlayer.update({
+          isOnline: true,
+          lastSeen: new Date()
+        });
+
+        const playerDataResult: PlayerData = {
+          id: existingPlayer.id,
+          name: (existingPlayer as any).character?.name || playerData.name,
+          isHost: playerData.isHost || false,
+          gameId: game.id,
+          isReady: existingPlayer.isReady,
+          isOnline: true,
+          character: {
+            id: (existingPlayer as any).character?.id || '',
+            name: (existingPlayer as any).character?.name || playerData.name,
+            class: (existingPlayer as any).character?.characterClass || 'fighter',
+            level: (existingPlayer as any).character?.level || 1,
+            health: (existingPlayer as any).character?.hp || 100,
+            maxHealth: (existingPlayer as any).character?.maxHp || 100,
+            position: (existingPlayer as any).character?.position || { x: 10, y: 10 },
+            initiative: (existingPlayer as any).character?.initiative || 0,
+            abilities: {
+              str: (existingPlayer as any).character?.stats?.strength || 15,
+              dex: (existingPlayer as any).character?.stats?.dexterity || 12,
+              con: (existingPlayer as any).character?.stats?.constitution || 14,
+              int: (existingPlayer as any).character?.stats?.intelligence || 10,
+              wis: (existingPlayer as any).character?.stats?.wisdom || 8,
+              cha: (existingPlayer as any).character?.stats?.charisma || 13
+            },
+            inventory: (existingPlayer as any).character?.inventory || []
+          }
+        };
+
+        return {
+          game: {
+            id: game.id,
+            name: game.name,
+            description: game.description || '',
+            maxPlayers: game.maxPlayers,
+            isPrivate: game.isPrivate,
+            isActive: game.isActive,
+            createdAt: game.createdAt || new Date(),
+            gameState: game.gameState
+          },
+          player: playerDataResult,
+          isNewPlayer: false
+        };
+      }
+
+      // Создаем нового игрока
       const player = await Player.create({
-        userId: tempUser.id, // Используем ID созданного пользователя
+        userId: user.id,
         gameId: game.id,
         isReady: true,
         isOnline: true,

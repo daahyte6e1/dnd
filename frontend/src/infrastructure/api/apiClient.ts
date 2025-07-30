@@ -103,6 +103,14 @@ class ApiClient {
     return response;
   }
 
+  async registerOrLoginByUsername(username) {
+    const response = await this.post('/auth/register-or-login', { username });
+    if (response.token) {
+      this.setToken(response.token);
+    }
+    return response;
+  }
+
   async getProfile() {
     return this.get('/auth/profile');
   }

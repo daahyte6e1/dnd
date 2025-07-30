@@ -13,6 +13,9 @@ router.post('/login', authController.login);
 // Вход по username (без пароля)
 router.post('/login-by-username', authController.loginByUsername);
 
+// Автоматическая регистрация/вход по username
+router.post('/register-or-login', authController.registerOrLoginByUsername);
+
 // Получение профиля (требует аутентификации)
 router.get('/profile', auth, authController.getProfile);
 
