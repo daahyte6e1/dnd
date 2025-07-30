@@ -1,6 +1,13 @@
-const GameService = require('../services/GameService');
+import { Request, Response } from 'express';
+import GameService from '../services/GameService';
 
 // Используем глобальный GameService
+declare global {
+  var gameService: GameService;
+  var games: Map<string, any>;
+  var players: Map<string, any>;
+}
+
 const gameService = global.gameService;
 const games = global.games;
 const players = global.players;
@@ -9,24 +16,70 @@ console.log('🎮 Используем глобальный GameService');
 console.log('📋 Размер внешнего хранилища игр:', games ? games.size : 0);
 console.log('🔍 Внешнее хранилище игр доступно:', !!games);
 
+interface CreateGameRequest {
+  name: string;
+  playerName: string;
+  isHost?: boolean;
+}
+
+interface JoinGameRequest {
+  playerName: string;
+}
+
+interface CharacterData {
+  name: string;
+  class: string;
+  level: number;
+  health: number;
+  maxHealth: number;
+  position: { x: number; y: number };
+  initiative: number;
+  abilities: {
+    str: number;
+    dex: number;
+    con: number;
+    int: number;
+    wis: number;
+    cha: number;
+  };
+  inventory: any[];
+}
+
+interface MoveCharacterRequest {
+  position: { x: number; y: number };
+}
+
+interface RollDiceRequest {
+  command: string;
+}
+
+interface InteractWithTileRequest {
+  x: number;
+  y: number;
+  action: string;
+}
+
 // Создание новой игры
-const createGame = async (req, res) => {
+const createGame = async (req: Request<{}, {}, CreateGameRequest>, res: Response): Promise<void> => {
   try {
     const { name, playerName, isHost } = req.body;
 
     if (!name || !playerName) {
-      return res.status(400).json({ error: 'Необходимо указать имя игры и имя игрока' });
+      res.status(400).json({ error: 'Необходимо указать имя игры и имя игрока' });
+      return;
     }
 
     // Проверяем, что глобальные объекты инициализированы
     if (!gameService || !games || !players) {
       console.error('❌ Глобальные объекты не инициализированы');
-      return res.status(500).json({ error: 'Сервис не инициализирован' });
+      res.status(500).json({ error: 'Сервис не инициализирован' });
+      return;
     }
 
     // Проверяем, существует ли уже игра с таким именем
     if (games.has(name)) {
-      return res.status(409).json({ error: 'Игра с таким именем уже существует' });
+      res.status(409).json({ error: 'Игра с таким именем уже существует' });
+      return;
     }
 
     // Создаем игру через GameService
@@ -85,24 +138,24 @@ const createGame = async (req, res) => {
         player: player
       }
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Ошибка создания игры:', error);
     res.status(500).json({ error: error.message });
   }
 };
 
 // Получение списка активных игр
-const getGames = async (req, res) => {
+const getGames = async (req: Request, res: Response): Promise<void> => {
   try {
-    const gamesList = Array.from(games.values()).filter(game => game.isActive);
+    const gamesList = Array.from(games.values()).filter((game: any) => game.isActive);
     
     res.json({ 
-      games: gamesList.map(game => ({
+      games: gamesList.map((game: any) => ({
         id: game.id,
         name: game.name,
         description: game.description,
         maxPlayers: game.maxPlayers,
-        playerCount: Array.from(players.values()).filter(p => p.gameId === game.id).length
+        playerCount: Array.from(players.values()).filter((p: any) => p.gameId === game.id).length
       }))
     });
   } catch (error) {
@@ -112,46 +165,50 @@ const getGames = async (req, res) => {
 };
 
 // Получение информации об игре
-const getGame = async (req, res) => {
+const getGame = async (req: Request<{ gameId: string }>, res: Response): Promise<void> => {
   try {
     const { gameId } = req.params;
 
     const game = games.get(gameId);
     if (!game) {
-      return res.status(404).json({ error: 'Игра не найдена' });
+      res.status(404).json({ error: 'Игра не найдена' });
+      return;
     }
 
-    const gamePlayers = Array.from(players.values()).filter(p => p.gameId === gameId);
+    const gamePlayers = Array.from(players.values()).filter((p: any) => p.gameId === gameId);
 
     res.json({
       ...game,
       players: gamePlayers
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Ошибка получения игры:', error);
     res.status(500).json({ error: error.message });
   }
 };
 
 // Присоединение к игре по имени
-const joinGameByName = async (req, res) => {
+const joinGameByName = async (req: Request<{ gameName: string }, {}, JoinGameRequest>, res: Response): Promise<void> => {
   try {
     const { gameName } = req.params;
     const { playerName } = req.body;
 
     if (!playerName) {
-      return res.status(400).json({ error: 'Необходимо указать имя игрока' });
+      res.status(400).json({ error: 'Необходимо указать имя игрока' });
+      return;
     }
 
     const game = games.get(gameName);
     if (!game) {
-      return res.status(404).json({ error: 'Игра не найдена' });
+      res.status(404).json({ error: 'Игра не найдена' });
+      return;
     }
 
     // Проверяем, не превышено ли максимальное количество игроков
-    const playerCount = Array.from(players.values()).filter(p => p.gameId === game.id).length;
+    const playerCount = Array.from(players.values()).filter((p: any) => p.gameId === game.id).length;
     if (playerCount >= game.maxPlayers) {
-      return res.status(409).json({ error: 'Игра заполнена' });
+      res.status(409).json({ error: 'Игра заполнена' });
+      return;
     }
 
     // Создаем игрока
@@ -191,14 +248,14 @@ const joinGameByName = async (req, res) => {
         player: player
       }
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Ошибка присоединения к игре:', error);
     res.status(500).json({ error: error.message });
   }
 };
 
 // Создание персонажа
-const createCharacter = async (req, res) => {
+const createCharacter = async (req: Request<{ gameId: string }, {}, CharacterData>, res: Response): Promise<void> => {
   try {
     const { gameId } = req.params;
     const characterData = req.body;
@@ -213,21 +270,22 @@ const createCharacter = async (req, res) => {
       message: 'Персонаж успешно создан',
       character
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Ошибка создания персонажа:', error);
     res.status(500).json({ error: error.message });
   }
 };
 
 // Движение персонажа
-const moveCharacter = async (req, res) => {
+const moveCharacter = async (req: Request<{ gameId: string }, {}, MoveCharacterRequest>, res: Response): Promise<void> => {
   try {
     const { gameId } = req.params;
     const { position } = req.body;
 
     // Простая валидация позиции
     if (position.x < 0 || position.x >= 20 || position.y < 0 || position.y >= 20) {
-      return res.status(400).json({ error: 'Недопустимая позиция' });
+      res.status(400).json({ error: 'Недопустимая позиция' });
+      return;
     }
 
     res.json({
@@ -235,14 +293,14 @@ const moveCharacter = async (req, res) => {
       character: { position },
       newPosition: position
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Ошибка движения персонажа:', error);
     res.status(500).json({ error: error.message });
   }
 };
 
 // Бросок кубика
-const rollDice = async (req, res) => {
+const rollDice = async (req: Request<{ gameId: string }, {}, RollDiceRequest>, res: Response): Promise<void> => {
   try {
     const { gameId } = req.params;
     const { command } = req.body;
@@ -253,14 +311,14 @@ const rollDice = async (req, res) => {
       message: 'Кубик брошен',
       roll: result
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Ошибка броска кубика:', error);
     res.status(500).json({ error: error.message });
   }
 };
 
 // Взаимодействие с тайлом
-const interactWithTile = async (req, res) => {
+const interactWithTile = async (req: Request<{ gameId: string }, {}, InteractWithTileRequest>, res: Response): Promise<void> => {
   try {
     const { gameId } = req.params;
     const { x, y, action } = req.body;
@@ -271,14 +329,14 @@ const interactWithTile = async (req, res) => {
       message: 'Взаимодействие выполнено',
       result
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Ошибка взаимодействия с тайлом:', error);
     res.status(500).json({ error: error.message });
   }
 };
 
 // Получение информации о тайле
-const getTileInfo = async (req, res) => {
+const getTileInfo = async (req: Request<{ gameId: string; x: string; y: string }>, res: Response): Promise<void> => {
   try {
     const { gameId, x, y } = req.params;
 
@@ -287,14 +345,14 @@ const getTileInfo = async (req, res) => {
     res.json({
       tile: tileInfo
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Ошибка получения информации о тайле:', error);
     res.status(500).json({ error: error.message });
   }
 };
 
 // Обновление состояния игры
-const updateGameState = async (req, res) => {
+const updateGameState = async (req: Request<{ gameId: string }, {}, any>, res: Response): Promise<void> => {
   try {
     const { gameId } = req.params;
     const gameState = req.body;
@@ -303,13 +361,13 @@ const updateGameState = async (req, res) => {
       message: 'Состояние игры обновлено',
       gameState
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Ошибка обновления состояния игры:', error);
     res.status(500).json({ error: error.message });
   }
 };
 
-module.exports = {
+export {
   createGame,
   getGames,
   getGame,

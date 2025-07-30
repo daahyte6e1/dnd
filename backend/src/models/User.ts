@@ -1,8 +1,25 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
-const bcrypt = require('bcryptjs');
+import { DataTypes, Model, Optional } from 'sequelize';
+import { sequelize } from '../config/database';
+import bcrypt from 'bcryptjs';
 
-const User = sequelize.define('User', {
+interface UserAttributes {
+  id: string;
+  username: string;
+  email: string;
+  password: string;
+  avatar?: string;
+  isActive: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+interface UserCreationAttributes extends Optional<UserAttributes, 'id' | 'avatar' | 'isActive' | 'createdAt' | 'updatedAt'> {}
+
+interface UserInstance extends Model<UserAttributes, UserCreationAttributes>, UserAttributes {
+  validatePassword(password: string): Promise<boolean>;
+}
+
+const User = sequelize.define<UserInstance>('User', {
   id: {
     type: DataTypes.UUID,
     defaultValue: DataTypes.UUIDV4,
@@ -39,12 +56,12 @@ const User = sequelize.define('User', {
 }, {
   timestamps: true,
   hooks: {
-    beforeCreate: async (user) => {
+    beforeCreate: async (user: UserInstance) => {
       if (user.password) {
         user.password = await bcrypt.hash(user.password, 10);
       }
     },
-    beforeUpdate: async (user) => {
+    beforeUpdate: async (user: UserInstance) => {
       if (user.changed('password')) {
         user.password = await bcrypt.hash(user.password, 10);
       }
@@ -53,8 +70,8 @@ const User = sequelize.define('User', {
 });
 
 // Метод для проверки пароля
-User.prototype.validatePassword = async function(password) {
+(User as any).prototype.validatePassword = async function(this: UserInstance, password: string): Promise<boolean> {
   return await bcrypt.compare(password, this.password);
 };
 
-module.exports = User; 
+export default User; 

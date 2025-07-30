@@ -1,7 +1,24 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
+import { DataTypes, Model, Optional } from 'sequelize';
+import { sequelize } from '../config/database';
 
-const World = sequelize.define('World', {
+interface WorldAttributes {
+  id: string;
+  gameId: string;
+  seed: string;
+  width: number;
+  height: number;
+  tiles: any;
+  worldData: any;
+  generationRules: any;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+interface WorldCreationAttributes extends Optional<WorldAttributes, 'id' | 'width' | 'height' | 'worldData' | 'generationRules' | 'createdAt' | 'updatedAt'> {}
+
+interface WorldInstance extends Model<WorldAttributes, WorldCreationAttributes>, WorldAttributes {}
+
+const World = sequelize.define<WorldInstance>('World', {
   id: {
     type: DataTypes.UUID,
     defaultValue: DataTypes.UUIDV4,
@@ -56,4 +73,4 @@ const World = sequelize.define('World', {
   timestamps: true
 });
 
-module.exports = World; 
+export default World; 

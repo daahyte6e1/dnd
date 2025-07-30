@@ -1,7 +1,7 @@
-const express = require('express');
-const http = require('http');
-const cors = require('cors');
-const dotenv = require('dotenv');
+import express, { Request, Response, NextFunction } from 'express';
+import http from 'http';
+import cors from 'cors';
+import dotenv from 'dotenv';
 
 // Загружаем переменные окружения
 dotenv.config();
@@ -22,17 +22,24 @@ const games = new Map();
 const players = new Map();
 
 // Создаем GameService с общим хранилищем
-const GameService = require('./services/GameService');
+import GameService from './services/GameService';
 const gameService = new GameService();
 gameService.setGamesStorage(games);
 gameService.setPlayersStorage(players);
 
 // Инициализация WebSocket сервиса
-const WebSocketService = require('./services/WebSocketService');
+import WebSocketService from './services/WebSocketService';
 const webSocketService = new WebSocketService(server);
 webSocketService.setGameService(gameService);
 
 // Экспортируем для доступа из других модулей
+declare global {
+  var webSocketService: WebSocketService;
+  var gameService: GameService;
+  var games: Map<string, any>;
+  var players: Map<string, any>;
+}
+
 global.webSocketService = webSocketService;
 global.gameService = gameService;
 global.games = games;
@@ -43,26 +50,26 @@ console.log('📋 Размер внешнего хранилища игр:', gam
 console.log('🔍 Внешнее хранилище игр доступно:', !!games);
 
 // Подключаем маршруты
-const authRoutes = require('./routes/auth');
-const gameRoutes = require('./routes/games');
+import authRoutes from './routes/auth';
+import gameRoutes from './routes/games';
 
 app.use('/api/auth', authRoutes);
 app.use('/api/games', gameRoutes);
 
 // Базовый route
-app.get('/', (req, res) => {
+app.get('/', (req: Request, res: Response) => {
   res.json({ message: 'DnD Backend API работает!' });
 });
 
 // Обработка ошибок
-app.use((err, req, res, next) => {
+app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   console.error(err.stack);
   res.status(500).json({ error: 'Что-то пошло не так!' });
 });
 
 const PORT = process.env.PORT || 3000;
 
-const startServer = async () => {
+const startServer = async (): Promise<void> => {
   try {
     // Запускаем сервер
     server.listen(PORT, () => {

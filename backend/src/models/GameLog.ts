@@ -1,7 +1,25 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
+import { DataTypes, Model, Optional } from 'sequelize';
+import { sequelize } from '../config/database';
 
-const GameLog = sequelize.define('GameLog', {
+type LogType = 'chat' | 'action' | 'combat' | 'system' | 'dice_roll';
+
+interface GameLogAttributes {
+  id: string;
+  gameId: string;
+  playerId?: string;
+  type: LogType;
+  message: string;
+  data: any;
+  timestamp: Date;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+interface GameLogCreationAttributes extends Optional<GameLogAttributes, 'id' | 'playerId' | 'data' | 'timestamp' | 'createdAt' | 'updatedAt'> {}
+
+interface GameLogInstance extends Model<GameLogAttributes, GameLogCreationAttributes>, GameLogAttributes {}
+
+const GameLog = sequelize.define<GameLogInstance>('GameLog', {
   id: {
     type: DataTypes.UUID,
     defaultValue: DataTypes.UUIDV4,
@@ -42,4 +60,4 @@ const GameLog = sequelize.define('GameLog', {
   ]
 });
 
-module.exports = GameLog; 
+export default GameLog; 

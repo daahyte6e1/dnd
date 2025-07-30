@@ -1,4 +1,60 @@
+interface TileType {
+  FOREST: string;
+  MOUNTAINS: string;
+  VILLAGE: string;
+  DUNGEON: string;
+  PLAINS: string;
+  WATER: string;
+}
+
+interface Tile {
+  type: string;
+  features: string[];
+  npcs: any[];
+  passable: boolean;
+  visibility: number;
+}
+
+interface GenerationRules {
+  forest: number;
+  mountains: number;
+  villages: number;
+  dungeons: number;
+  plains: number;
+}
+
+interface Location {
+  type: string;
+  position: { x: number; y: number };
+  name: string;
+  npcs?: any[];
+  difficulty?: number;
+}
+
+interface WorldData {
+  locations: Location[];
+  npcs: any[];
+  events: any[];
+}
+
+interface WorldResult {
+  tiles: Tile[][];
+  worldData: WorldData;
+  width: number;
+  height: number;
+  seed: number;
+}
+
+interface NPC {
+  id: string;
+  type: string;
+  name: string;
+  friendly: boolean;
+}
+
 class WorldGenerator {
+  private tileTypes: TileType;
+
   constructor() {
     this.tileTypes = {
       FOREST: 'forest',
@@ -11,19 +67,19 @@ class WorldGenerator {
   }
 
   // Простая реализация Perlin noise
-  noise(x, y, seed) {
+  private noise(x: number, y: number, seed: number): number {
     const n = x + y * 57 + seed * 131;
     return (n * (n * n * 15731 + 789221) + 1376312589) & 0x7fffffff;
   }
 
   // Нормализация значения noise
-  normalizedNoise(x, y, seed) {
+  private normalizedNoise(x: number, y: number, seed: number): number {
     return (this.noise(x, y, seed) % 1000) / 1000;
   }
 
   // Генерация мира по seed
-  generateWorld(width, height, seed, rules = null) {
-    const defaultRules = {
+  generateWorld(width: number, height: number, seed: number, rules: GenerationRules | null = null): WorldResult {
+    const defaultRules: GenerationRules = {
       forest: 0.3,
       mountains: 0.2,
       villages: 0.1,
@@ -32,8 +88,8 @@ class WorldGenerator {
     };
 
     const generationRules = rules || defaultRules;
-    const tiles = [];
-    const worldData = {
+    const tiles: Tile[][] = [];
+    const worldData: WorldData = {
       locations: [],
       npcs: [],
       events: []
@@ -76,8 +132,8 @@ class WorldGenerator {
   }
 
   // Генерация тайла на основе noise и правил
-  generateTile(x, y, noiseValue, rules, seed) {
-    const tile = {
+  private generateTile(x: number, y: number, noiseValue: number, rules: GenerationRules, seed: number): Tile {
+    const tile: Tile = {
       type: this.tileTypes.PLAINS,
       features: [],
       npcs: [],
@@ -106,8 +162,8 @@ class WorldGenerator {
   }
 
   // Генерация особенностей леса
-  generateForestFeatures(seed) {
-    const features = [];
+  private generateForestFeatures(seed: number): string[] {
+    const features: string[] = [];
     const random = this.normalizedNoise(seed, 0, 0);
     
     if (random < 0.3) features.push('trees');
@@ -118,8 +174,8 @@ class WorldGenerator {
   }
 
   // Генерация особенностей деревни
-  generateVillageFeatures(seed) {
-    const features = [];
+  private generateVillageFeatures(seed: number): string[] {
+    const features: string[] = [];
     const random = this.normalizedNoise(seed, 0, 0);
     
     features.push('houses');
@@ -131,8 +187,8 @@ class WorldGenerator {
   }
 
   // Генерация особенностей подземелья
-  generateDungeonFeatures(seed) {
-    const features = [];
+  private generateDungeonFeatures(seed: number): string[] {
+    const features: string[] = [];
     const random = this.normalizedNoise(seed, 0, 0);
     
     features.push('entrance');
@@ -144,8 +200,8 @@ class WorldGenerator {
   }
 
   // Генерация NPC для деревни
-  generateVillageNPCs(seed) {
-    const npcs = [];
+  private generateVillageNPCs(seed: number): NPC[] {
+    const npcs: NPC[] = [];
     const npcCount = Math.floor(this.normalizedNoise(seed, 0, 0) * 5) + 2;
     
     const npcTypes = ['merchant', 'innkeeper', 'guard', 'farmer', 'blacksmith'];
@@ -163,7 +219,7 @@ class WorldGenerator {
   }
 
   // Получение информации о тайле
-  getTileInfo(x, y, tiles) {
+  getTileInfo(x: number, y: number, tiles: Tile[][]): Tile | null {
     if (x < 0 || y < 0 || x >= tiles.length || y >= tiles[0].length) {
       return null;
     }
@@ -171,15 +227,15 @@ class WorldGenerator {
   }
 
   // Проверка проходимости
-  isPassable(x, y, tiles) {
+  isPassable(x: number, y: number, tiles: Tile[][]): boolean {
     const tile = this.getTileInfo(x, y, tiles);
-    return tile && tile.passable;
+    return tile ? tile.passable : false;
   }
 
   // Поиск пути (простая реализация)
-  findPath(startX, startY, endX, endY, tiles) {
+  findPath(startX: number, startY: number, endX: number, endY: number, tiles: Tile[][]): { x: number; y: number }[] {
     // Простая реализация - можно улучшить алгоритмом A*
-    const path = [];
+    const path: { x: number; y: number }[] = [];
     let currentX = startX;
     let currentY = startY;
     
@@ -202,4 +258,4 @@ class WorldGenerator {
   }
 }
 
-module.exports = WorldGenerator; 
+export default WorldGenerator; 

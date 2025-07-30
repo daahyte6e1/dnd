@@ -1,7 +1,69 @@
-const WorldGenerator = require('./WorldGenerator');
-const DiceService = require('./DiceService');
+import WorldGenerator from './WorldGenerator';
+import DiceService from './DiceService';
+
+interface GameData {
+  id: string;
+  name: string;
+  description: string;
+  maxPlayers: number;
+  isPrivate: boolean;
+  isActive: boolean;
+  createdAt: Date;
+  gameState: {
+    status: string;
+    currentTurn: string | null;
+    turnOrder: string[];
+    round: number;
+  };
+}
+
+interface PlayerData {
+  id: string;
+  name: string;
+  isHost: boolean;
+  gameId: string;
+  isReady: boolean;
+  isOnline: boolean;
+  character: {
+    id: string;
+    name: string;
+    class: string;
+    level: number;
+    health: number;
+    maxHealth: number;
+    position: { x: number; y: number };
+    initiative: number;
+    abilities: {
+      str: number;
+      dex: number;
+      con: number;
+      int: number;
+      wis: number;
+      cha: number;
+    };
+    inventory: any[];
+  };
+}
+
+interface GameSession {
+  game: GameData;
+  world: any;
+  players: Map<string, PlayerData>;
+  logs: any[];
+}
+
+interface JoinGameData {
+  name: string;
+  isHost?: boolean;
+}
 
 class GameService {
+  private worldGenerator: WorldGenerator;
+  private diceService: DiceService;
+  private activeGames: Map<string, GameSession>;
+  private externalGames: Map<string, GameData> | null;
+  private externalPlayers: Map<string, PlayerData> | null;
+
   constructor() {
     this.worldGenerator = new WorldGenerator();
     this.diceService = new DiceService();
@@ -11,22 +73,22 @@ class GameService {
   }
 
   // Установка внешнего хранилища игр
-  setGamesStorage(gamesStorage) {
+  setGamesStorage(gamesStorage: Map<string, GameData>): void {
     this.externalGames = gamesStorage;
   }
 
   // Установка внешнего хранилища игроков
-  setPlayersStorage(playersStorage) {
+  setPlayersStorage(playersStorage: Map<string, PlayerData>): void {
     this.externalPlayers = playersStorage;
   }
 
   // Генерация мира
-  generateWorld(width, height, seed) {
+  generateWorld(width: number, height: number, seed: number): any {
     return this.worldGenerator.generateWorld(width, height, seed);
   }
 
   // Создание новой игры
-  createGame(gameData) {
+  createGame(gameData: { name: string; description: string; maxPlayers?: number; isPrivate?: boolean }): GameData {
     try {
       const { name, description, maxPlayers, isPrivate } = gameData;
       
@@ -39,7 +101,7 @@ class GameService {
       }
 
       // Создаем игру
-      const game = {
+      const game: GameData = {
         id: Date.now().toString(),
         name,
         description,
@@ -73,13 +135,13 @@ class GameService {
       });
 
       return game;
-    } catch (error) {
+    } catch (error: any) {
       throw new Error(`Ошибка создания игры: ${error.message}`);
     }
   }
 
   // Подключение к игре
-  joinGame(gameName, playerData) {
+  joinGame(gameName: string, playerData: JoinGameData): { game: GameData; player: PlayerData; isNewPlayer: boolean } {
     try {
       console.log(`🔍 Поиск игры: ${gameName}`);
       console.log(`🔍 Внешнее хранилище игр доступно:`, !!this.externalGames);
@@ -95,7 +157,7 @@ class GameService {
         if (externalGame) {
           console.log(`✅ Найдена игра во внешнем хранилище: ${externalGame.name}`);
           // Создаем структуру для GameService
-          const game = {
+          const game: GameSession = {
             game: externalGame,
             world: this.worldGenerator.generateWorld(20, 20, Date.now()),
             players: new Map(),
@@ -105,7 +167,7 @@ class GameService {
           this.activeGames.set(externalGame.id, game);
           
           // Создаем игрока
-          const player = {
+          const player: PlayerData = {
             id: Date.now().toString(),
             name: playerData.name,
             isHost: playerData.isHost || false,
@@ -145,13 +207,13 @@ class GameService {
       }
       
       throw new Error('Игра не найдена');
-    } catch (error) {
+    } catch (error: any) {
       throw new Error(`Ошибка подключения к игре: ${error.message}`);
     }
   }
 
   // Получение состояния игры
-  getGameState(gameId) {
+  getGameState(gameId: string): { game: GameData; world: any; players: PlayerData[]; logs: any[] } {
     const gameData = this.activeGames.get(gameId);
     if (!gameData) {
       throw new Error('Игра не найдена');
@@ -166,7 +228,7 @@ class GameService {
   }
 
   // Создание персонажа
-  createCharacter(gameId, characterData) {
+  createCharacter(gameId: string, characterData: any): any {
     const gameData = this.activeGames.get(gameId);
     if (!gameData) {
       throw new Error('Игра не найдена');
@@ -182,7 +244,7 @@ class GameService {
   }
 
   // Движение персонажа
-  moveCharacter(gameId, position) {
+  moveCharacter(gameId: string, position: { x: number; y: number }): { character: { position: { x: number; y: number } }; newPosition: { x: number; y: number } } {
     const gameData = this.activeGames.get(gameId);
     if (!gameData) {
       throw new Error('Игра не найдена');
@@ -201,12 +263,12 @@ class GameService {
   }
 
   // Бросок кубика
-  rollDice(command) {
+  rollDice(command: string): any {
     return this.diceService.parseDiceCommand(command) || this.diceService.rollDice(1, 20);
   }
 
   // Логирование действий
-  logAction(gameId, playerId, type, message, data = {}) {
+  logAction(gameId: string, playerId: string, type: string, message: string, data: any = {}): any {
     const gameData = this.activeGames.get(gameId);
     if (!gameData) {
       throw new Error('Игра не найдена');
@@ -227,7 +289,7 @@ class GameService {
   }
 
   // Получение информации о тайле
-  getTileInfo(gameId, x, y) {
+  getTileInfo(gameId: string, x: number, y: number): any {
     const gameData = this.activeGames.get(gameId);
     if (!gameData) {
       throw new Error('Игра не найдена');
@@ -247,7 +309,7 @@ class GameService {
   }
 
   // Взаимодействие с тайлом
-  interactWithTile(gameId, x, y, action) {
+  interactWithTile(gameId: string, x: number, y: number, action: string): any {
     const gameData = this.activeGames.get(gameId);
     if (!gameData) {
       throw new Error('Игра не найдена');
@@ -281,10 +343,10 @@ class GameService {
   }
 
   // Отключение игрока
-  disconnectPlayer(playerId) {
+  disconnectPlayer(playerId: string): PlayerData | null {
     for (const [gameId, gameData] of this.activeGames) {
       if (gameData.players.has(playerId)) {
-        const player = gameData.players.get(playerId);
+        const player = gameData.players.get(playerId)!;
         player.isOnline = false;
         return player;
       }
@@ -293,7 +355,7 @@ class GameService {
   }
 
   // Обновление состояния игры
-  updateGameState(gameId, gameState) {
+  updateGameState(gameId: string, gameState: any): any {
     const gameData = this.activeGames.get(gameId);
     if (!gameData) {
       throw new Error('Игра не найдена');
@@ -304,4 +366,4 @@ class GameService {
   }
 }
 
-module.exports = GameService; 
+export default GameService; 

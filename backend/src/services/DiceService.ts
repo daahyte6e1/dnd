@@ -1,4 +1,73 @@
+interface DiceTypes {
+  d4: number;
+  d6: number;
+  d8: number;
+  d10: number;
+  d12: number;
+  d20: number;
+  d100: number;
+}
+
+interface DiceCommand {
+  count: number;
+  sides: number;
+  modifier: number;
+  command: string;
+}
+
+interface RollResult {
+  rolls: number[];
+  total: number;
+  modifier: number;
+  count: number;
+  sides: number;
+  command: string;
+}
+
+interface AdvantageRollResult extends RollResult {
+  advantage: boolean;
+}
+
+interface DisadvantageRollResult extends RollResult {
+  disadvantage: boolean;
+}
+
+interface AbilityCheckResult extends RollResult {
+  abilityScore: number;
+  abilityModifier: number;
+  total: number;
+  success: 'critical_success' | 'critical_failure' | 'success' | 'failure';
+}
+
+interface AttackRollResult extends RollResult {
+  attackBonus: number;
+  targetAC: number;
+  total: number;
+  hit: boolean;
+  critical: boolean;
+  criticalMiss: boolean;
+  result: 'critical_miss' | 'critical_hit' | 'hit' | 'miss';
+}
+
+interface DamageRollResult extends RollResult {
+  damageDice: string;
+  critical: boolean;
+  baseCount: number;
+  actualCount: number;
+}
+
+interface SavingThrowResult extends RollResult {
+  abilityScore: number;
+  abilityModifier: number;
+  difficultyClass: number;
+  total: number;
+  success: boolean;
+  result: 'success' | 'failure';
+}
+
 class DiceService {
+  private diceTypes: DiceTypes;
+
   constructor() {
     this.diceTypes = {
       d4: 4,
@@ -12,7 +81,7 @@ class DiceService {
   }
 
   // Парсинг команды броска кубика
-  parseDiceCommand(command) {
+  parseDiceCommand(command: string): DiceCommand | null {
     const diceRegex = /^\/roll\s+(\d+)d(\d+)(\s*\+\s*(\d+))?$/i;
     const match = command.match(diceRegex);
     
@@ -29,13 +98,13 @@ class DiceService {
   }
 
   // Бросок одного кубика
-  rollDie(sides) {
+  rollDie(sides: number): number {
     return Math.floor(Math.random() * sides) + 1;
   }
 
   // Бросок нескольких кубиков
-  rollDice(count, sides, modifier = 0) {
-    const rolls = [];
+  rollDice(count: number, sides: number, modifier: number = 0): RollResult {
+    const rolls: number[] = [];
     let total = 0;
 
     for (let i = 0; i < count; i++) {
@@ -57,7 +126,7 @@ class DiceService {
   }
 
   // Бросок с преимуществом/недостатком (D&D 5e)
-  rollWithAdvantage(sides, modifier = 0) {
+  rollWithAdvantage(sides: number, modifier: number = 0): AdvantageRollResult {
     const roll1 = this.rollDie(sides);
     const roll2 = this.rollDie(sides);
     
@@ -65,13 +134,14 @@ class DiceService {
       rolls: [roll1, roll2],
       total: Math.max(roll1, roll2) + modifier,
       modifier,
+      count: 1,
       sides,
       advantage: true,
       command: `/roll adv d${sides}${modifier > 0 ? ` + ${modifier}` : ''}`
     };
   }
 
-  rollWithDisadvantage(sides, modifier = 0) {
+  rollWithDisadvantage(sides: number, modifier: number = 0): DisadvantageRollResult {
     const roll1 = this.rollDie(sides);
     const roll2 = this.rollDie(sides);
     
@@ -79,6 +149,7 @@ class DiceService {
       rolls: [roll1, roll2],
       total: Math.min(roll1, roll2) + modifier,
       modifier,
+      count: 1,
       sides,
       disadvantage: true,
       command: `/roll dis d${sides}${modifier > 0 ? ` + ${modifier}` : ''}`
@@ -86,19 +157,19 @@ class DiceService {
   }
 
   // Проверка способности (D&D 5e)
-  abilityCheck(abilityScore, modifier = 0, advantage = false, disadvantage = false) {
+  abilityCheck(abilityScore: number, modifier: number = 0, advantage: boolean = false, disadvantage: boolean = false): AbilityCheckResult {
     const sides = 20;
-    let result;
+    let result: RollResult;
 
     if (advantage && disadvantage) {
       // Если есть и преимущество и недостаток, они отменяют друг друга
-      result = this.rollDie(sides);
+      result = this.rollDice(1, sides, modifier);
     } else if (advantage) {
-      result = this.rollWithAdvantage(sides);
+      result = this.rollWithAdvantage(sides, modifier);
     } else if (disadvantage) {
-      result = this.rollWithDisadvantage(sides);
+      result = this.rollWithDisadvantage(sides, modifier);
     } else {
-      result = this.rollDie(sides);
+      result = this.rollDice(1, sides, modifier);
     }
 
     const abilityModifier = Math.floor((abilityScore - 10) / 2);
@@ -116,18 +187,18 @@ class DiceService {
   }
 
   // Атака (D&D 5e)
-  attackRoll(attackBonus, targetAC, advantage = false, disadvantage = false) {
+  attackRoll(attackBonus: number, targetAC: number, advantage: boolean = false, disadvantage: boolean = false): AttackRollResult {
     const sides = 20;
-    let result;
+    let result: RollResult;
 
     if (advantage && disadvantage) {
-      result = this.rollDie(sides);
+      result = this.rollDice(1, sides, 0);
     } else if (advantage) {
-      result = this.rollWithAdvantage(sides);
+      result = this.rollWithAdvantage(sides, 0);
     } else if (disadvantage) {
-      result = this.rollWithDisadvantage(sides);
+      result = this.rollWithDisadvantage(sides, 0);
     } else {
-      result = this.rollDie(sides);
+      result = this.rollDice(1, sides, 0);
     }
 
     const total = result.total + attackBonus;
@@ -150,7 +221,7 @@ class DiceService {
   }
 
   // Урон
-  damageRoll(damageDice, damageBonus = 0, critical = false) {
+  damageRoll(damageDice: string, damageBonus: number = 0, critical: boolean = false): DamageRollResult {
     const diceMatch = damageDice.match(/^(\d+)d(\d+)$/);
     if (!diceMatch) {
       throw new Error('Неверный формат урона');
@@ -174,18 +245,18 @@ class DiceService {
   }
 
   // Спасбросок (D&D 5e)
-  savingThrow(abilityScore, difficultyClass, modifier = 0, advantage = false, disadvantage = false) {
+  savingThrow(abilityScore: number, difficultyClass: number, modifier: number = 0, advantage: boolean = false, disadvantage: boolean = false): SavingThrowResult {
     const sides = 20;
-    let result;
+    let result: RollResult;
 
     if (advantage && disadvantage) {
-      result = this.rollDie(sides);
+      result = this.rollDice(1, sides, 0);
     } else if (advantage) {
-      result = this.rollWithAdvantage(sides);
+      result = this.rollWithAdvantage(sides, 0);
     } else if (disadvantage) {
-      result = this.rollWithDisadvantage(sides);
+      result = this.rollWithDisadvantage(sides, 0);
     } else {
-      result = this.rollDie(sides);
+      result = this.rollDice(1, sides, 0);
     }
 
     const abilityModifier = Math.floor((abilityScore - 10) / 2);
@@ -204,7 +275,7 @@ class DiceService {
   }
 
   // Форматирование результата для отображения
-  formatRollResult(result, playerName) {
+  formatRollResult(result: any, playerName: string): string {
     const rollText = result.rolls ? `[${result.rolls.join(', ')}]` : `[${result.total - result.modifier}]`;
     const modifierText = result.modifier > 0 ? ` + ${result.modifier}` : '';
     const totalText = result.total !== undefined ? ` = ${result.total}` : '';
@@ -227,4 +298,4 @@ class DiceService {
   }
 }
 
-module.exports = DiceService; 
+export default DiceService; 

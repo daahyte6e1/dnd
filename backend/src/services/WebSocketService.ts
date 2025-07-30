@@ -1,9 +1,71 @@
-const { Server } = require('socket.io');
-const GameService = require('./GameService');
-const { Player, User, Character } = require('../models');
+import { Server, Socket } from 'socket.io';
+import { Server as HttpServer } from 'http';
+import GameService from './GameService';
+import { Player, User, Character } from '../models';
+
+interface GameRoom {
+  game: any;
+  players: Map<string, PlayerInfo>;
+}
+
+interface PlayerInfo {
+  socketId: string;
+  player: any;
+}
+
+interface AuthenticateData {
+  userId: string;
+  token?: string;
+}
+
+interface JoinGameData {
+  gameName: string;
+}
+
+interface CreateCharacterData {
+  gameId: string;
+  characterData: any;
+}
+
+interface MoveCharacterData {
+  gameId: string;
+  position: any;
+}
+
+interface RollDiceData {
+  gameId: string;
+  command: string;
+}
+
+interface InteractTileData {
+  gameId: string;
+  x: number;
+  y: number;
+  action: string;
+}
+
+interface ChatMessageData {
+  gameId: string;
+  message: string;
+}
+
+interface GetTileInfoData {
+  gameId: string;
+  x: number;
+  y: number;
+}
+
+interface AuthenticatedSocket extends Socket {
+  userId?: string;
+}
 
 class WebSocketService {
-  constructor(server) {
+  private io: Server;
+  private gameService: GameService;
+  private gameRooms: Map<string, GameRoom>;
+  private userSockets: Map<string, string>;
+
+  constructor(server: HttpServer) {
     this.io = new Server(server, {
       cors: {
         origin: process.env.FRONTEND_URL || ["http://localhost:5173", "http://localhost:5174"],
@@ -19,48 +81,48 @@ class WebSocketService {
     this.setupEventHandlers();
   }
 
-  setupEventHandlers() {
-    this.io.on('connection', (socket) => {
+  private setupEventHandlers(): void {
+    this.io.on('connection', (socket: AuthenticatedSocket) => {
       console.log(`Пользователь подключился: ${socket.id}`);
       console.log(`Origin: ${socket.handshake.headers.origin}`);
       
       // Аутентификация пользователя
-      socket.on('authenticate', async (data) => {
+      socket.on('authenticate', async (data: AuthenticateData) => {
         await this.handleAuthentication(socket, data);
       });
 
       // Подключение к игре
-      socket.on('join_game', async (data) => {
+      socket.on('join_game', async (data: JoinGameData) => {
         await this.handleJoinGame(socket, data);
       });
 
       // Создание персонажа
-      socket.on('create_character', async (data) => {
+      socket.on('create_character', async (data: CreateCharacterData) => {
         await this.handleCreateCharacter(socket, data);
       });
 
       // Движение персонажа
-      socket.on('move_character', async (data) => {
+      socket.on('move_character', async (data: MoveCharacterData) => {
         await this.handleMoveCharacter(socket, data);
       });
 
       // Бросок кубика
-      socket.on('roll_dice', async (data) => {
+      socket.on('roll_dice', async (data: RollDiceData) => {
         await this.handleRollDice(socket, data);
       });
 
       // Взаимодействие с тайлом
-      socket.on('interact_tile', async (data) => {
+      socket.on('interact_tile', async (data: InteractTileData) => {
         await this.handleInteractTile(socket, data);
       });
 
       // Чат сообщение
-      socket.on('chat_message', async (data) => {
+      socket.on('chat_message', async (data: ChatMessageData) => {
         await this.handleChatMessage(socket, data);
       });
 
       // Запрос информации о тайле
-      socket.on('get_tile_info', async (data) => {
+      socket.on('get_tile_info', async (data: GetTileInfoData) => {
         await this.handleGetTileInfo(socket, data);
       });
 
@@ -72,7 +134,7 @@ class WebSocketService {
   }
 
   // Обработка аутентификации
-  async handleAuthentication(socket, data) {
+  private async handleAuthentication(socket: AuthenticatedSocket, data: AuthenticateData): Promise<void> {
     try {
       const { userId, token } = data;
       
@@ -95,7 +157,7 @@ class WebSocketService {
   }
 
   // Обработка подключения к игре
-  async handleJoinGame(socket, data) {
+  private async handleJoinGame(socket: AuthenticatedSocket, data: JoinGameData): Promise<void> {
     try {
       const { gameName } = data;
       const userId = socket.userId;
@@ -123,10 +185,12 @@ class WebSocketService {
       }
       
       const room = this.gameRooms.get(result.game.id);
-      room.players.set(userId, {
-        socketId: socket.id,
-        player: result.player
-      });
+      if (room) {
+        room.players.set(userId, {
+          socketId: socket.id,
+          player: result.player
+        });
+      }
 
       // Уведомляем всех в комнате о новом игроке
       this.io.to(result.game.id).emit('player_joined', {
@@ -135,17 +199,17 @@ class WebSocketService {
       });
 
       // Отправляем текущее состояние игры новому игроку
-      const gameState = await this.gameService.getGameState(result.game.id, userId);
+      const gameState = await this.gameService.getGameState(result.game.id);
       socket.emit('game_state', gameState);
 
       console.log(`Игрок ${userId} присоединился к игре ${gameName}`);
     } catch (error) {
-      socket.emit('error', { message: error.message });
+      socket.emit('error', { message: error instanceof Error ? error.message : 'Неизвестная ошибка' });
     }
   }
 
   // Обработка создания персонажа
-  async handleCreateCharacter(socket, data) {
+  private async handleCreateCharacter(socket: AuthenticatedSocket, data: CreateCharacterData): Promise<void> {
     try {
       const { gameId, characterData } = data;
       const userId = socket.userId;
@@ -171,12 +235,12 @@ class WebSocketService {
 
       socket.emit('character_created_success', { character });
     } catch (error) {
-      socket.emit('error', { message: error.message });
+      socket.emit('error', { message: error instanceof Error ? error.message : 'Неизвестная ошибка' });
     }
   }
 
   // Обработка движения персонажа
-  async handleMoveCharacter(socket, data) {
+  private async handleMoveCharacter(socket: AuthenticatedSocket, data: MoveCharacterData): Promise<void> {
     try {
       const { gameId, position } = data;
       const userId = socket.userId;
@@ -203,12 +267,12 @@ class WebSocketService {
 
       socket.emit('move_success', { character });
     } catch (error) {
-      socket.emit('error', { message: error.message });
+      socket.emit('error', { message: error instanceof Error ? error.message : 'Неизвестная ошибка' });
     }
   }
 
   // Обработка броска кубика
-  async handleRollDice(socket, data) {
+  private async handleRollDice(socket: AuthenticatedSocket, data: RollDiceData): Promise<void> {
     try {
       const { gameId, command } = data;
       const userId = socket.userId;
@@ -224,7 +288,7 @@ class WebSocketService {
         return;
       }
 
-      const result = await this.gameService.rollDice(gameId, player.id, command);
+      const result = await this.gameService.rollDice(command);
       
       // Уведомляем всех в комнате о броске кубика
       this.io.to(gameId).emit('dice_rolled', {
@@ -235,12 +299,12 @@ class WebSocketService {
 
       socket.emit('roll_success', result);
     } catch (error) {
-      socket.emit('error', { message: error.message });
+      socket.emit('error', { message: error instanceof Error ? error.message : 'Неизвестная ошибка' });
     }
   }
 
   // Обработка взаимодействия с тайлом
-  async handleInteractTile(socket, data) {
+  private async handleInteractTile(socket: AuthenticatedSocket, data: InteractTileData): Promise<void> {
     try {
       const { gameId, x, y, action } = data;
       const userId = socket.userId;
@@ -256,7 +320,7 @@ class WebSocketService {
         return;
       }
 
-      const result = await this.gameService.interactWithTile(gameId, player.id, x, y, action);
+      const result = await this.gameService.interactWithTile(gameId, x, y, action);
       
       // Уведомляем всех в комнате о взаимодействии
       this.io.to(gameId).emit('tile_interaction', {
@@ -269,12 +333,12 @@ class WebSocketService {
 
       socket.emit('interaction_success', result);
     } catch (error) {
-      socket.emit('error', { message: error.message });
+      socket.emit('error', { message: error instanceof Error ? error.message : 'Неизвестная ошибка' });
     }
   }
 
   // Обработка чат сообщения
-  async handleChatMessage(socket, data) {
+  private async handleChatMessage(socket: AuthenticatedSocket, data: ChatMessageData): Promise<void> {
     try {
       const { gameId, message } = data;
       const userId = socket.userId;
@@ -285,8 +349,7 @@ class WebSocketService {
       }
 
       const player = await Player.findOne({ 
-        where: { userId, gameId },
-        include: [{ model: User, as: 'user' }]
+        where: { userId, gameId }
       });
       
       if (!player) {
@@ -300,17 +363,17 @@ class WebSocketService {
       // Отправляем сообщение всем в комнате
       this.io.to(gameId).emit('chat_message', {
         playerId: player.id,
-        playerName: player.user.username,
+        playerName: `User-${userId}`, // Используем userId как имя игрока
         message,
         timestamp: new Date()
       });
     } catch (error) {
-      socket.emit('error', { message: error.message });
+      socket.emit('error', { message: error instanceof Error ? error.message : 'Неизвестная ошибка' });
     }
   }
 
   // Обработка запроса информации о тайле
-  async handleGetTileInfo(socket, data) {
+  private async handleGetTileInfo(socket: AuthenticatedSocket, data: GetTileInfoData): Promise<void> {
     try {
       const { gameId, x, y } = data;
       const userId = socket.userId;
@@ -328,12 +391,12 @@ class WebSocketService {
         tile: tileInfo
       });
     } catch (error) {
-      socket.emit('error', { message: error.message });
+      socket.emit('error', { message: error instanceof Error ? error.message : 'Неизвестная ошибка' });
     }
   }
 
   // Обработка отключения
-  handleDisconnect(socket) {
+  private handleDisconnect(socket: AuthenticatedSocket): void {
     const userId = socket.userId;
     
     if (userId) {
@@ -362,7 +425,7 @@ class WebSocketService {
   }
 
   // Отправка системного сообщения в игру
-  sendSystemMessage(gameId, message, data = {}) {
+  public sendSystemMessage(gameId: string, message: string, data: any = {}): void {
     this.io.to(gameId).emit('system_message', {
       message,
       data,
@@ -371,13 +434,13 @@ class WebSocketService {
   }
 
   // Обновление состояния игры для всех игроков
-  async updateGameStateForAll(gameId) {
+  public async updateGameStateForAll(gameId: string): Promise<void> {
     try {
       const room = this.gameRooms.get(gameId);
       if (!room) return;
 
       for (const [userId, playerInfo] of room.players) {
-        const gameState = await this.gameService.getGameState(gameId, userId);
+        const gameState = await this.gameService.getGameState(gameId);
         const socket = this.io.sockets.sockets.get(playerInfo.socketId);
         if (socket) {
           socket.emit('game_state_updated', gameState);
@@ -389,22 +452,22 @@ class WebSocketService {
   }
 
   // Получение списка игроков в игре
-  getPlayersInGame(gameId) {
+  public getPlayersInGame(gameId: string): string[] {
     const room = this.gameRooms.get(gameId);
     return room ? Array.from(room.players.keys()) : [];
   }
 
   // Проверка, подключен ли игрок к игре
-  isPlayerInGame(gameId, userId) {
+  public isPlayerInGame(gameId: string, userId: string): boolean {
     const room = this.gameRooms.get(gameId);
     return room ? room.players.has(userId) : false;
   }
 
   // Установка GameService
-  setGameService(gameService) {
+  public setGameService(gameService: GameService): void {
     this.gameService = gameService;
     console.log('🔌 GameService установлен в WebSocketService');
   }
 }
 
-module.exports = WebSocketService; 
+export default WebSocketService; 

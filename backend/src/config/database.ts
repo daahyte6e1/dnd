@@ -1,5 +1,5 @@
-const { Sequelize } = require('sequelize');
-const dotenv = require('dotenv');
+import { Sequelize } from 'sequelize';
+import dotenv from 'dotenv';
 
 dotenv.config();
 
@@ -9,7 +9,7 @@ const sequelize = new Sequelize(
   process.env.DB_PASSWORD || 'tmp',
   {
     host: process.env.DB_HOST || 'localhost',
-    port: process.env.DB_PORT || 5432,
+    port: parseInt(process.env.DB_PORT || '5432'),
     dialect: 'postgres',
     logging: false, // Отключаем логи SQL запросов в продакшене
     pool: {
@@ -22,7 +22,7 @@ const sequelize = new Sequelize(
 );
 
 // Тестирование подключения
-const testConnection = async () => {
+const testConnection = async (): Promise<void> => {
   try {
     await sequelize.authenticate();
     console.log('Подключение к базе данных успешно установлено.');
@@ -31,4 +31,4 @@ const testConnection = async () => {
   }
 };
 
-module.exports = { sequelize, testConnection }; 
+export { sequelize, testConnection }; 

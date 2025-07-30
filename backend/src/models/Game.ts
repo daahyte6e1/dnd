@@ -1,7 +1,25 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
+import { DataTypes, Model, Optional } from 'sequelize';
+import { sequelize } from '../config/database';
 
-const Game = sequelize.define('Game', {
+interface GameAttributes {
+  id: string;
+  name: string;
+  description?: string;
+  gameState: any;
+  maxPlayers: number;
+  isActive: boolean;
+  isPrivate: boolean;
+  password?: string;
+  dmId: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+interface GameCreationAttributes extends Optional<GameAttributes, 'id' | 'description' | 'gameState' | 'maxPlayers' | 'isActive' | 'isPrivate' | 'password' | 'createdAt' | 'updatedAt'> {}
+
+interface GameInstance extends Model<GameAttributes, GameCreationAttributes>, GameAttributes {}
+
+const Game = sequelize.define<GameInstance>('Game', {
   id: {
     type: DataTypes.UUID,
     defaultValue: DataTypes.UUIDV4,
@@ -50,4 +68,4 @@ const Game = sequelize.define('Game', {
   timestamps: true
 });
 
-module.exports = Game; 
+export default Game; 

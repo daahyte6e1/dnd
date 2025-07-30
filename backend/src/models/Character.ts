@@ -1,7 +1,38 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
+import { DataTypes, Model, Optional } from 'sequelize';
+import { sequelize } from '../config/database';
 
-const Character = sequelize.define('Character', {
+type CharacterClass = 'fighter' | 'wizard' | 'rogue' | 'cleric' | 'ranger' | 'barbarian';
+
+interface CharacterAttributes {
+  id: string;
+  playerId: string;
+  name: string;
+  characterClass: CharacterClass;
+  level: number;
+  stats: {
+    strength: number;
+    dexterity: number;
+    constitution: number;
+    intelligence: number;
+    wisdom: number;
+    charisma: number;
+  };
+  hp: number;
+  maxHp: number;
+  position: { x: number; y: number };
+  inventory: any[];
+  experience: number;
+  initiative: number;
+  isAlive: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+interface CharacterCreationAttributes extends Optional<CharacterAttributes, 'id' | 'level' | 'stats' | 'hp' | 'maxHp' | 'position' | 'inventory' | 'experience' | 'initiative' | 'isAlive' | 'createdAt' | 'updatedAt'> {}
+
+interface CharacterInstance extends Model<CharacterAttributes, CharacterCreationAttributes>, CharacterAttributes {}
+
+const Character = sequelize.define<CharacterInstance>('Character', {
   id: {
     type: DataTypes.UUID,
     defaultValue: DataTypes.UUIDV4,
@@ -73,4 +104,4 @@ const Character = sequelize.define('Character', {
   timestamps: true
 });
 
-module.exports = Character; 
+export default Character; 

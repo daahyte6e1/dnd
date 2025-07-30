@@ -1,10 +1,10 @@
-const { sequelize, testConnection } = require('../config/database');
-const User = require('./User');
-const Game = require('./Game');
-const Player = require('./Player');
-const World = require('./World');
-const Character = require('./Character');
-const GameLog = require('./GameLog');
+import { sequelize, testConnection } from '../config/database';
+import User from './User';
+import Game from './Game';
+import Player from './Player';
+import World from './World';
+import Character from './Character';
+import GameLog from './GameLog';
 
 // Определяем связи между моделями
 User.hasMany(Game, { as: 'createdGames', foreignKey: 'dmId' });
@@ -29,7 +29,7 @@ Player.hasMany(GameLog, { as: 'logs', foreignKey: 'playerId' });
 GameLog.belongsTo(Player, { as: 'player', foreignKey: 'playerId' });
 
 // Синхронизация базы данных
-const syncDatabase = async () => {
+const syncDatabase = async (): Promise<void> => {
   try {
     await sequelize.sync({ alter: true });
     console.log('База данных синхронизирована');
@@ -38,7 +38,7 @@ const syncDatabase = async () => {
   }
 };
 
-module.exports = {
+export {
   sequelize,
   User,
   Game,

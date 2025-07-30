@@ -1,7 +1,8 @@
-const express = require('express');
+import express from 'express';
+import * as authController from '../controllers/authController';
+import auth from '../middleware/auth';
+
 const router = express.Router();
-const authController = require('../controllers/authController');
-const auth = require('../middleware/auth');
 
 // Регистрация
 router.post('/register', authController.register);
@@ -12,4 +13,4 @@ router.post('/login', authController.login);
 // Получение профиля (требует аутентификации)
 router.get('/profile', auth, authController.getProfile);
 
-module.exports = router; 
+export default router; 

@@ -1,7 +1,27 @@
-const jwt = require('jsonwebtoken');
-const { User } = require('../models');
+import jwt from 'jsonwebtoken';
+import { Request, Response } from 'express';
+import { Op } from 'sequelize';
+import { User } from '../models';
 
-const generateToken = (user) => {
+interface AuthRequest extends Request {
+  user?: {
+    id: string;
+    username: string;
+  };
+}
+
+interface RegisterRequest {
+  username: string;
+  email: string;
+  password: string;
+}
+
+interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+const generateToken = (user: any): string => {
   return jwt.sign(
     { id: user.id, username: user.username },
     process.env.JWT_SECRET || 'your-secret-key',
@@ -10,19 +30,20 @@ const generateToken = (user) => {
 };
 
 // Регистрация пользователя
-const register = async (req, res) => {
+const register = async (req: Request<{}, {}, RegisterRequest>, res: Response): Promise<void> => {
   try {
     const { username, email, password } = req.body;
 
     // Проверяем, существует ли пользователь
     const existingUser = await User.findOne({
       where: {
-        [User.sequelize.Op.or]: [{ email }, { username }]
+        [Op.or]: [{ email }, { username }]
       }
     });
 
     if (existingUser) {
-      return res.status(400).json({ error: 'Пользователь с таким email или username уже существует' });
+      res.status(400).json({ error: 'Пользователь с таким email или username уже существует' });
+      return;
     }
 
     // Создаем нового пользователя
@@ -50,7 +71,7 @@ const register = async (req, res) => {
 };
 
 // Вход пользователя
-const login = async (req, res) => {
+const login = async (req: Request<{}, {}, LoginRequest>, res: Response): Promise<void> => {
   try {
     const { email, password } = req.body;
 
@@ -60,13 +81,15 @@ const login = async (req, res) => {
     });
 
     if (!user) {
-      return res.status(401).json({ error: 'Неверный email или пароль' });
+      res.status(401).json({ error: 'Неверный email или пароль' });
+      return;
     }
 
     // Проверяем пароль
     const isValidPassword = await user.validatePassword(password);
     if (!isValidPassword) {
-      return res.status(401).json({ error: 'Неверный email или пароль' });
+      res.status(401).json({ error: 'Неверный email или пароль' });
+      return;
     }
 
     const token = generateToken(user);
@@ -87,8 +110,13 @@ const login = async (req, res) => {
 };
 
 // Получение профиля пользователя
-const getProfile = async (req, res) => {
+const getProfile = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Пользователь не авторизован' });
+      return;
+    }
+
     const user = await User.findByPk(req.user.id, {
       attributes: { exclude: ['password'] }
     });
@@ -100,7 +128,7 @@ const getProfile = async (req, res) => {
   }
 };
 
-module.exports = {
+export {
   register,
   login,
   getProfile

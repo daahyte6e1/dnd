@@ -1,6 +1,7 @@
-const express = require('express');
+import express from 'express';
+import * as gameController from '../controllers/gameController';
+
 const router = express.Router();
-const gameController = require('../controllers/gameController');
 
 // Получение списка игр (публичный доступ)
 router.get('/', gameController.getGames);
@@ -32,4 +33,4 @@ router.get('/:gameId/tile/:x/:y', gameController.getTileInfo);
 // Обновление состояния игры
 router.put('/:gameId/state', gameController.updateGameState);
 
-module.exports = router; 
+export default router; 
