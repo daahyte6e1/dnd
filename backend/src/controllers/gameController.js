@@ -1,0 +1,316 @@
+const GameService = require('../services/GameService');
+
+// Используем глобальный GameService
+const gameService = global.gameService || new GameService();
+const games = global.games || new Map();
+const players = global.players || new Map();
+
+console.log('🎮 Используем глобальный GameService');
+console.log('📋 Размер внешнего хранилища игр:', games.size);
+
+// Создание новой игры
+const createGame = async (req, res) => {
+  try {
+    const { name, playerName, isHost } = req.body;
+
+    if (!name || !playerName) {
+      return res.status(400).json({ error: 'Необходимо указать имя игры и имя игрока' });
+    }
+
+    // Проверяем, существует ли уже игра с таким именем
+    if (games.has(name)) {
+      return res.status(409).json({ error: 'Игра с таким именем уже существует' });
+    }
+
+    // Создаем игру через GameService
+    const gameData = {
+      name,
+      description: `Игра ${name}`,
+      maxPlayers: 6,
+      isPrivate: false
+    };
+
+    console.log('🎮 Создание игры через GameService:', gameData);
+    const game = gameService.createGame(gameData);
+    console.log('✅ Игра создана в GameService:', game.id);
+
+    // Создаем игрока
+    const player = {
+      id: Date.now().toString(),
+      name: playerName,
+      isHost: isHost || false,
+      gameId: game.id,
+      character: {
+        id: Date.now().toString(),
+        name: playerName,
+        class: 'Warrior',
+        level: 1,
+        health: 100,
+        maxHealth: 100,
+        position: { x: 10, y: 10 },
+        initiative: 0,
+        abilities: {
+          str: 15,
+          dex: 12,
+          con: 14,
+          int: 10,
+          wis: 8,
+          cha: 13
+        },
+        inventory: []
+      }
+    };
+
+    // Добавляем игрока в GameService
+    gameService.joinGame(game.name, {
+      name: playerName,
+      isHost: isHost || false
+    });
+
+    games.set(name, game);
+    players.set(player.id, player);
+
+    res.status(201).json({
+      message: 'Игра успешно создана',
+      game: {
+        id: game.id,
+        name: game.name,
+        player: player
+      }
+    });
+  } catch (error) {
+    console.error('Ошибка создания игры:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Получение списка активных игр
+const getGames = async (req, res) => {
+  try {
+    const gamesList = Array.from(games.values()).filter(game => game.isActive);
+    
+    res.json({ 
+      games: gamesList.map(game => ({
+        id: game.id,
+        name: game.name,
+        description: game.description,
+        maxPlayers: game.maxPlayers,
+        playerCount: Array.from(players.values()).filter(p => p.gameId === game.id).length
+      }))
+    });
+  } catch (error) {
+    console.error('Ошибка получения игр:', error);
+    res.status(500).json({ error: 'Ошибка при получении игр' });
+  }
+};
+
+// Получение информации об игре
+const getGame = async (req, res) => {
+  try {
+    const { gameId } = req.params;
+
+    const game = games.get(gameId);
+    if (!game) {
+      return res.status(404).json({ error: 'Игра не найдена' });
+    }
+
+    const gamePlayers = Array.from(players.values()).filter(p => p.gameId === gameId);
+
+    res.json({
+      ...game,
+      players: gamePlayers
+    });
+  } catch (error) {
+    console.error('Ошибка получения игры:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Присоединение к игре по имени
+const joinGameByName = async (req, res) => {
+  try {
+    const { gameName } = req.params;
+    const { playerName } = req.body;
+
+    if (!playerName) {
+      return res.status(400).json({ error: 'Необходимо указать имя игрока' });
+    }
+
+    const game = games.get(gameName);
+    if (!game) {
+      return res.status(404).json({ error: 'Игра не найдена' });
+    }
+
+    // Проверяем, не превышено ли максимальное количество игроков
+    const playerCount = Array.from(players.values()).filter(p => p.gameId === game.id).length;
+    if (playerCount >= game.maxPlayers) {
+      return res.status(409).json({ error: 'Игра заполнена' });
+    }
+
+    // Создаем игрока
+    const player = {
+      id: Date.now().toString(),
+      name: playerName,
+      isHost: false,
+      gameId: game.id,
+      character: {
+        id: Date.now().toString(),
+        name: playerName,
+        class: 'Warrior',
+        level: 1,
+        health: 100,
+        maxHealth: 100,
+        position: { x: 10, y: 10 },
+        initiative: 0,
+        abilities: {
+          str: 15,
+          dex: 12,
+          con: 14,
+          int: 10,
+          wis: 8,
+          cha: 13
+        },
+        inventory: []
+      }
+    };
+
+    players.set(player.id, player);
+
+    res.json({
+      message: 'Успешно присоединились к игре',
+      game: {
+        id: game.id,
+        name: game.name,
+        player: player
+      }
+    });
+  } catch (error) {
+    console.error('Ошибка присоединения к игре:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Создание персонажа
+const createCharacter = async (req, res) => {
+  try {
+    const { gameId } = req.params;
+    const characterData = req.body;
+
+    const character = {
+      id: Date.now().toString(),
+      ...characterData,
+      createdAt: new Date()
+    };
+
+    res.json({
+      message: 'Персонаж успешно создан',
+      character
+    });
+  } catch (error) {
+    console.error('Ошибка создания персонажа:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Движение персонажа
+const moveCharacter = async (req, res) => {
+  try {
+    const { gameId } = req.params;
+    const { position } = req.body;
+
+    // Простая валидация позиции
+    if (position.x < 0 || position.x >= 20 || position.y < 0 || position.y >= 20) {
+      return res.status(400).json({ error: 'Недопустимая позиция' });
+    }
+
+    res.json({
+      message: 'Персонаж успешно перемещен',
+      character: { position },
+      newPosition: position
+    });
+  } catch (error) {
+    console.error('Ошибка движения персонажа:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Бросок кубика
+const rollDice = async (req, res) => {
+  try {
+    const { gameId } = req.params;
+    const { command } = req.body;
+
+    const result = gameService.rollDice(command);
+
+    res.json({
+      message: 'Кубик брошен',
+      roll: result
+    });
+  } catch (error) {
+    console.error('Ошибка броска кубика:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Взаимодействие с тайлом
+const interactWithTile = async (req, res) => {
+  try {
+    const { gameId } = req.params;
+    const { x, y, action } = req.body;
+
+    const result = gameService.interactWithTile(gameId, x, y, action);
+
+    res.json({
+      message: 'Взаимодействие выполнено',
+      result
+    });
+  } catch (error) {
+    console.error('Ошибка взаимодействия с тайлом:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Получение информации о тайле
+const getTileInfo = async (req, res) => {
+  try {
+    const { gameId, x, y } = req.params;
+
+    const tileInfo = gameService.getTileInfo(gameId, parseInt(x), parseInt(y));
+
+    res.json({
+      tile: tileInfo
+    });
+  } catch (error) {
+    console.error('Ошибка получения информации о тайле:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Обновление состояния игры
+const updateGameState = async (req, res) => {
+  try {
+    const { gameId } = req.params;
+    const gameState = req.body;
+
+    res.json({
+      message: 'Состояние игры обновлено',
+      gameState
+    });
+  } catch (error) {
+    console.error('Ошибка обновления состояния игры:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+module.exports = {
+  createGame,
+  getGames,
+  getGame,
+  joinGameByName,
+  createCharacter,
+  moveCharacter,
+  rollDice,
+  interactWithTile,
+  getTileInfo,
+  updateGameState
+}; 
