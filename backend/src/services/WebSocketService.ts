@@ -127,8 +127,8 @@ class WebSocketService {
       });
 
       // Отключение
-      socket.on('disconnect', () => {
-        this.handleDisconnect(socket);
+      socket.on('disconnect', async () => {
+        await this.handleDisconnect(socket);
       });
     });
   }
@@ -256,16 +256,16 @@ class WebSocketService {
         return;
       }
 
-      const character = await this.gameService.moveCharacter(player.id, position);
+      const result = await this.gameService.moveCharacter(gameId, player.id, position);
       
       // Уведомляем всех в комнате о движении персонажа
       this.io.to(gameId).emit('character_moved', {
         playerId: player.id,
-        character,
-        position
+        character: result.character,
+        position: result.newPosition
       });
 
-      socket.emit('move_success', { character });
+      socket.emit('move_success', { character: result.character });
     } catch (error) {
       socket.emit('error', { message: error instanceof Error ? error.message : 'Неизвестная ошибка' });
     }
@@ -396,7 +396,7 @@ class WebSocketService {
   }
 
   // Обработка отключения
-  private handleDisconnect(socket: AuthenticatedSocket): void {
+  private async handleDisconnect(socket: AuthenticatedSocket): Promise<void> {
     const userId = socket.userId;
     
     if (userId) {
@@ -413,7 +413,10 @@ class WebSocketService {
           this.io.to(gameId).emit('player_disconnected', { userId });
           
           // Отключаем игрока в базе данных
-          this.gameService.disconnectPlayer(userId);
+          const player = await Player.findOne({ where: { userId } });
+          if (player) {
+            await this.gameService.disconnectPlayer(player.id);
+          }
           
           console.log(`Игрок ${userId} отключился от игры ${gameId}`);
           break;

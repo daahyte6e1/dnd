@@ -4,22 +4,17 @@ import GameService from '../services/GameService';
 // Используем глобальный GameService
 declare global {
   var gameService: GameService;
-  var games: Map<string, any>;
-  var players: Map<string, any>;
 }
 
 const gameService = global.gameService;
-const games = global.games;
-const players = global.players;
 
 console.log('🎮 Используем глобальный GameService');
-console.log('📋 Размер внешнего хранилища игр:', games ? games.size : 0);
-console.log('🔍 Внешнее хранилище игр доступно:', !!games);
 
 interface CreateGameRequest {
   name: string;
   playerName: string;
   isHost?: boolean;
+  dmId: string;
 }
 
 interface JoinGameRequest {
@@ -47,6 +42,7 @@ interface CharacterData {
 
 interface MoveCharacterRequest {
   position: { x: number; y: number };
+  playerId: string;
 }
 
 interface RollDiceRequest {
@@ -62,23 +58,17 @@ interface InteractWithTileRequest {
 // Создание новой игры
 const createGame = async (req: Request<{}, {}, CreateGameRequest>, res: Response): Promise<void> => {
   try {
-    const { name, playerName, isHost } = req.body;
+    const { name, playerName, isHost, dmId } = req.body;
 
-    if (!name || !playerName) {
-      res.status(400).json({ error: 'Необходимо указать имя игры и имя игрока' });
+    if (!name || !playerName || !dmId) {
+      res.status(400).json({ error: 'Необходимо указать имя игры, имя игрока и ID мастера игры' });
       return;
     }
 
-    // Проверяем, что глобальные объекты инициализированы
-    if (!gameService || !games || !players) {
-      console.error('❌ Глобальные объекты не инициализированы');
+    // Проверяем, что глобальный объект инициализирован
+    if (!gameService) {
+      console.error('❌ GameService не инициализирован');
       res.status(500).json({ error: 'Сервис не инициализирован' });
-      return;
-    }
-
-    // Проверяем, существует ли уже игра с таким именем
-    if (games.has(name)) {
-      res.status(409).json({ error: 'Игра с таким именем уже существует' });
       return;
     }
 
@@ -87,55 +77,26 @@ const createGame = async (req: Request<{}, {}, CreateGameRequest>, res: Response
       name,
       description: `Игра ${name}`,
       maxPlayers: 6,
-      isPrivate: false
+      isPrivate: false,
+      dmId
     };
 
     console.log('🎮 Создание игры через GameService:', gameData);
-    const game = gameService.createGame(gameData);
+    const game = await gameService.createGame(gameData);
     console.log('✅ Игра создана в GameService:', game.id);
 
     // Создаем игрока
-    const player = {
-      id: Date.now().toString(),
-      name: playerName,
-      isHost: isHost || false,
-      gameId: game.id,
-      character: {
-        id: Date.now().toString(),
-        name: playerName,
-        class: 'Warrior',
-        level: 1,
-        health: 100,
-        maxHealth: 100,
-        position: { x: 10, y: 10 },
-        initiative: 0,
-        abilities: {
-          str: 15,
-          dex: 12,
-          con: 14,
-          int: 10,
-          wis: 8,
-          cha: 13
-        },
-        inventory: []
-      }
-    };
-
-    // Добавляем игрока в GameService
-    gameService.joinGame(game.name, {
+    const player = await gameService.joinGame(name, {
       name: playerName,
       isHost: isHost || false
     });
-
-    games.set(name, game);
-    players.set(player.id, player);
 
     res.status(201).json({
       message: 'Игра успешно создана',
       game: {
         id: game.id,
         name: game.name,
-        player: player
+        player: player.player
       }
     });
   } catch (error: any) {
@@ -147,20 +108,26 @@ const createGame = async (req: Request<{}, {}, CreateGameRequest>, res: Response
 // Получение списка активных игр
 const getGames = async (req: Request, res: Response): Promise<void> => {
   try {
-    const gamesList = Array.from(games.values()).filter((game: any) => game.isActive);
+    if (!gameService) {
+      res.status(500).json({ error: 'Сервис не инициализирован' });
+      return;
+    }
+
+    const games = await gameService.getActiveGames();
     
     res.json({ 
-      games: gamesList.map((game: any) => ({
+      games: games.map(game => ({
         id: game.id,
         name: game.name,
         description: game.description,
         maxPlayers: game.maxPlayers,
-        playerCount: Array.from(players.values()).filter((p: any) => p.gameId === game.id).length
+        isPrivate: game.isPrivate,
+        isActive: game.isActive
       }))
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Ошибка получения игр:', error);
-    res.status(500).json({ error: 'Ошибка при получении игр' });
+    res.status(500).json({ error: error.message });
   }
 };
 
@@ -169,18 +136,14 @@ const getGame = async (req: Request<{ gameId: string }>, res: Response): Promise
   try {
     const { gameId } = req.params;
 
-    const game = games.get(gameId);
-    if (!game) {
-      res.status(404).json({ error: 'Игра не найдена' });
+    if (!gameService) {
+      res.status(500).json({ error: 'Сервис не инициализирован' });
       return;
     }
 
-    const gamePlayers = Array.from(players.values()).filter((p: any) => p.gameId === gameId);
+    const gameState = await gameService.getGameState(gameId);
 
-    res.json({
-      ...game,
-      players: gamePlayers
-    });
+    res.json(gameState);
   } catch (error: any) {
     console.error('Ошибка получения игры:', error);
     res.status(500).json({ error: error.message });
@@ -198,54 +161,22 @@ const joinGameByName = async (req: Request<{ gameName: string }, {}, JoinGameReq
       return;
     }
 
-    const game = games.get(gameName);
-    if (!game) {
-      res.status(404).json({ error: 'Игра не найдена' });
+    if (!gameService) {
+      res.status(500).json({ error: 'Сервис не инициализирован' });
       return;
     }
 
-    // Проверяем, не превышено ли максимальное количество игроков
-    const playerCount = Array.from(players.values()).filter((p: any) => p.gameId === game.id).length;
-    if (playerCount >= game.maxPlayers) {
-      res.status(409).json({ error: 'Игра заполнена' });
-      return;
-    }
-
-    // Создаем игрока
-    const player = {
-      id: Date.now().toString(),
+    const result = await gameService.joinGame(gameName, {
       name: playerName,
-      isHost: false,
-      gameId: game.id,
-      character: {
-        id: Date.now().toString(),
-        name: playerName,
-        class: 'Warrior',
-        level: 1,
-        health: 100,
-        maxHealth: 100,
-        position: { x: 10, y: 10 },
-        initiative: 0,
-        abilities: {
-          str: 15,
-          dex: 12,
-          con: 14,
-          int: 10,
-          wis: 8,
-          cha: 13
-        },
-        inventory: []
-      }
-    };
-
-    players.set(player.id, player);
+      isHost: false
+    });
 
     res.json({
       message: 'Успешно присоединились к игре',
       game: {
-        id: game.id,
-        name: game.name,
-        player: player
+        id: result.game.id,
+        name: result.game.name,
+        player: result.player
       }
     });
   } catch (error: any) {
@@ -260,11 +191,12 @@ const createCharacter = async (req: Request<{ gameId: string }, {}, CharacterDat
     const { gameId } = req.params;
     const characterData = req.body;
 
-    const character = {
-      id: Date.now().toString(),
-      ...characterData,
-      createdAt: new Date()
-    };
+    if (!gameService) {
+      res.status(500).json({ error: 'Сервис не инициализирован' });
+      return;
+    }
+
+    const character = await gameService.createCharacter(gameId, characterData);
 
     res.json({
       message: 'Персонаж успешно создан',
@@ -280,18 +212,19 @@ const createCharacter = async (req: Request<{ gameId: string }, {}, CharacterDat
 const moveCharacter = async (req: Request<{ gameId: string }, {}, MoveCharacterRequest>, res: Response): Promise<void> => {
   try {
     const { gameId } = req.params;
-    const { position } = req.body;
+    const { position, playerId } = req.body;
 
-    // Простая валидация позиции
-    if (position.x < 0 || position.x >= 20 || position.y < 0 || position.y >= 20) {
-      res.status(400).json({ error: 'Недопустимая позиция' });
+    if (!gameService) {
+      res.status(500).json({ error: 'Сервис не инициализирован' });
       return;
     }
 
+    const result = await gameService.moveCharacter(gameId, playerId, position);
+
     res.json({
       message: 'Персонаж успешно перемещен',
-      character: { position },
-      newPosition: position
+      character: result.character,
+      newPosition: result.newPosition
     });
   } catch (error: any) {
     console.error('Ошибка движения персонажа:', error);
@@ -304,6 +237,11 @@ const rollDice = async (req: Request<{ gameId: string }, {}, RollDiceRequest>, r
   try {
     const { gameId } = req.params;
     const { command } = req.body;
+
+    if (!gameService) {
+      res.status(500).json({ error: 'Сервис не инициализирован' });
+      return;
+    }
 
     const result = gameService.rollDice(command);
 
@@ -323,7 +261,12 @@ const interactWithTile = async (req: Request<{ gameId: string }, {}, InteractWit
     const { gameId } = req.params;
     const { x, y, action } = req.body;
 
-    const result = gameService.interactWithTile(gameId, x, y, action);
+    if (!gameService) {
+      res.status(500).json({ error: 'Сервис не инициализирован' });
+      return;
+    }
+
+    const result = await gameService.interactWithTile(gameId, x, y, action);
 
     res.json({
       message: 'Взаимодействие выполнено',
@@ -340,7 +283,12 @@ const getTileInfo = async (req: Request<{ gameId: string; x: string; y: string }
   try {
     const { gameId, x, y } = req.params;
 
-    const tileInfo = gameService.getTileInfo(gameId, parseInt(x), parseInt(y));
+    if (!gameService) {
+      res.status(500).json({ error: 'Сервис не инициализирован' });
+      return;
+    }
+
+    const tileInfo = await gameService.getTileInfo(gameId, parseInt(x), parseInt(y));
 
     res.json({
       tile: tileInfo
@@ -357,9 +305,16 @@ const updateGameState = async (req: Request<{ gameId: string }, {}, any>, res: R
     const { gameId } = req.params;
     const gameState = req.body;
 
+    if (!gameService) {
+      res.status(500).json({ error: 'Сервис не инициализирован' });
+      return;
+    }
+
+    const result = await gameService.updateGameState(gameId, gameState);
+
     res.json({
       message: 'Состояние игры обновлено',
-      gameState
+      gameState: result
     });
   } catch (error: any) {
     console.error('Ошибка обновления состояния игры:', error);

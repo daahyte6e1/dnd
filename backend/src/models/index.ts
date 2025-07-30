@@ -32,9 +32,10 @@ GameLog.belongsTo(Player, { as: 'player', foreignKey: 'playerId' });
 const syncDatabase = async (): Promise<void> => {
   try {
     await sequelize.sync({ alter: true });
-    console.log('База данных синхронизирована');
+    console.log('✅ База данных синхронизирована');
   } catch (error) {
-    console.error('Ошибка синхронизации базы данных:', error);
+    console.error('❌ Ошибка синхронизации базы данных:', error);
+    throw error;
   }
 };
 

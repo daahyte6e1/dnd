@@ -5,7 +5,6 @@ interface PlayerAttributes {
   id: string;
   userId: string;
   gameId: string;
-  characterData: any;
   isReady: boolean;
   isOnline: boolean;
   lastSeen: Date;
@@ -13,7 +12,7 @@ interface PlayerAttributes {
   updatedAt?: Date;
 }
 
-interface PlayerCreationAttributes extends Optional<PlayerAttributes, 'id' | 'characterData' | 'isReady' | 'isOnline' | 'lastSeen' | 'createdAt' | 'updatedAt'> {}
+interface PlayerCreationAttributes extends Optional<PlayerAttributes, 'id' | 'isReady' | 'isOnline' | 'lastSeen' | 'createdAt' | 'updatedAt'> {}
 
 interface PlayerInstance extends Model<PlayerAttributes, PlayerCreationAttributes>, PlayerAttributes {}
 
@@ -30,10 +29,6 @@ const Player = sequelize.define<PlayerInstance>('Player', {
   gameId: {
     type: DataTypes.UUID,
     allowNull: false
-  },
-  characterData: {
-    type: DataTypes.JSON,
-    defaultValue: {}
   },
   isReady: {
     type: DataTypes.BOOLEAN,

@@ -17,15 +17,13 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Создаем общее хранилище игр
-const games = new Map();
-const players = new Map();
+// Инициализация базы данных
+import { sequelize, testConnection } from './config/database';
+import { syncDatabase } from './models';
 
-// Создаем GameService с общим хранилищем
+// Создаем GameService
 import GameService from './services/GameService';
 const gameService = new GameService();
-gameService.setGamesStorage(games);
-gameService.setPlayersStorage(players);
 
 // Инициализация WebSocket сервиса
 import WebSocketService from './services/WebSocketService';
@@ -36,18 +34,12 @@ webSocketService.setGameService(gameService);
 declare global {
   var webSocketService: WebSocketService;
   var gameService: GameService;
-  var games: Map<string, any>;
-  var players: Map<string, any>;
 }
 
 global.webSocketService = webSocketService;
 global.gameService = gameService;
-global.games = games;
-global.players = players;
 
 console.log('🚀 Инициализация сервисов завершена');
-console.log('📋 Размер внешнего хранилища игр:', games.size);
-console.log('🔍 Внешнее хранилище игр доступно:', !!games);
 
 // Подключаем маршруты
 import authRoutes from './routes/auth';
@@ -71,6 +63,12 @@ const PORT = process.env.PORT || 3000;
 
 const startServer = async (): Promise<void> => {
   try {
+    // Тестируем подключение к базе данных
+    await testConnection();
+    
+    // Синхронизируем базу данных
+    await syncDatabase();
+    
     // Запускаем сервер
     server.listen(PORT, () => {
       console.log(`Сервер запущен на порту ${PORT}`);
