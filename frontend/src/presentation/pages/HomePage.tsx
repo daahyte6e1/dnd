@@ -15,6 +15,7 @@ import {
   Divider
 } from '@mui/material';
 import { useWebSocketStore } from '../../infrastructure/store/websocketStore';
+import apiClient from '../../infrastructure/api/apiClient';
 
 const HomePage = () => {
   const navigate = useNavigate();
@@ -39,28 +40,16 @@ const HomePage = () => {
       // Подключаемся к WebSocket
       await connect();
       
-      // Создаем игру
-      const response = await fetch('http://localhost:3000/api/games', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: gameName,
-          playerName: playerName,
-          isHost: true
-        }),
+      // Создаем игру через API клиент
+      const gameData = await apiClient.createGame({
+        name: gameName,
+        playerName: playerName,
+        isHost: true
       });
 
-      if (response.ok) {
-        const gameData = await response.json();
-        navigate(`/game/${gameName}`);
-      } else {
-        const errorData = await response.json();
-        setError(errorData.message || 'Ошибка создания игры');
-      }
+      navigate(`/game/${gameName}`);
     } catch (err) {
-      setError('Ошибка подключения к серверу');
+      setError(err.message || 'Ошибка создания игры');
     } finally {
       setIsCreating(false);
     }
@@ -79,29 +68,14 @@ const HomePage = () => {
       // Подключаемся к WebSocket
       await connect();
       
-      // Подключаемся к игре
-      const response = await fetch(`http://localhost:3000/api/games/${gameName}/join`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          playerName: playerName
-        }),
+      // Подключаемся к игре через API клиент
+      await apiClient.joinGame(gameName, {
+        playerName: playerName
       });
 
-      console.log(response, 'xxxxxxxxxxx')
-      if (response.ok) {
-        navigate(`/game/${gameName}`);
-      } else {
-        const errorData = await response.json();
-
-        console.log('xxxxxxxxxxx', errorData.message)
-        setError(errorData.message || 'Ошибка подключения к игре');
-      }
+      navigate(`/game/${gameName}`);
     } catch (err) {
-      console.log('xxxxxxxxxxx', err.message)
-      setError('Ошибка подключения к серверу');
+      setError(err.message || 'Ошибка подключения к игре');
     } finally {
       setIsJoining(false);
     }

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import GameService from '../services/GameService';
+import User from '../models/User'; // Added import for User model
 
 // Используем глобальный GameService
 declare global {
@@ -60,8 +61,8 @@ const createGame = async (req: Request<{}, {}, CreateGameRequest>, res: Response
   try {
     const { name, playerName, isHost, dmId } = req.body;
 
-    if (!name || !playerName || !dmId) {
-      res.status(400).json({ error: 'Необходимо указать имя игры, имя игрока и ID мастера игры' });
+    if (!name || !playerName) {
+      res.status(400).json({ error: 'Необходимо указать имя игры и имя игрока' });
       return;
     }
 
@@ -72,13 +73,34 @@ const createGame = async (req: Request<{}, {}, CreateGameRequest>, res: Response
       return;
     }
 
+    let finalDmId = dmId;
+    
+    // Если dmId не передан или не существует, создаем временного пользователя
+    if (!dmId) {
+      const tempUser = await User.create({
+        username: `dm_${Date.now()}`,
+        email: `temp_${Date.now()}@temp.com`,
+        password: 'temp_password_123',
+        isActive: true
+      });
+      finalDmId = tempUser.id;
+      console.log('✅ Создан временный пользователь для DM:', finalDmId);
+    } else {
+      // Проверяем, существует ли пользователь с таким dmId
+      const existingUser = await User.findByPk(dmId);
+      if (!existingUser) {
+        res.status(400).json({ error: 'Пользователь с указанным dmId не найден' });
+        return;
+      }
+    }
+
     // Создаем игру через GameService
     const gameData = {
       name,
       description: `Игра ${name}`,
       maxPlayers: 6,
       isPrivate: false,
-      dmId
+      dmId: finalDmId
     };
 
     console.log('🎮 Создание игры через GameService:', gameData);

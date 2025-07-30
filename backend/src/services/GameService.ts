@@ -138,7 +138,6 @@ class GameService {
       const game = await Game.findOne({ 
         where: { name: gameName, isActive: true },
         include: [
-          { model: Player, as: 'players' },
           { model: World, as: 'world' }
         ]
       });
@@ -155,9 +154,17 @@ class GameService {
         throw new Error('Игра заполнена');
       }
 
+      // Создаем временного пользователя для игрока
+      const tempUser = await User.create({
+        username: `player_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        email: `temp_player_${Date.now()}@temp.com`,
+        password: 'temp_password_123',
+        isActive: true
+      });
+
       // Создаем игрока
       const player = await Player.create({
-        userId: Date.now().toString(), // Временный ID, в реальном приложении должен быть настоящий userId
+        userId: tempUser.id, // Используем ID созданного пользователя
         gameId: game.id,
         isReady: true,
         isOnline: true,
@@ -509,10 +516,7 @@ class GameService {
   async getActiveGames(): Promise<GameData[]> {
     try {
       const games = await Game.findAll({
-        where: { isActive: true },
-        include: [
-          { model: Player, as: 'players' }
-        ]
+        where: { isActive: true }
       });
 
       return games.map(game => ({

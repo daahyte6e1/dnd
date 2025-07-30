@@ -1,4 +1,7 @@
 class ApiClient {
+  private baseURL: string;
+  private token: string | null;
+
   constructor(baseURL = 'http://localhost:3000/api') {
     this.baseURL = baseURL;
     this.token = localStorage.getItem('authToken');
@@ -113,12 +116,12 @@ class ApiClient {
   }
 
   async createGame(gameData) {
+    // Убираем автоматическую генерацию dmId - бэкенд сам создаст временного пользователя
     return this.post('/games', gameData);
   }
 
-  async joinGame(gameId, password = null) {
-    const data = password ? { password } : {};
-    return this.post(`/games/${gameId}/join`, data);
+  async joinGame(gameName, playerData) {
+    return this.post(`/games/${gameName}/join`, playerData);
   }
 
   async updateGameState(gameId, gameState) {
