@@ -1,12 +1,13 @@
 const GameService = require('../services/GameService');
 
 // Используем глобальный GameService
-const gameService = global.gameService || new GameService();
-const games = global.games || new Map();
-const players = global.players || new Map();
+const gameService = global.gameService;
+const games = global.games;
+const players = global.players;
 
 console.log('🎮 Используем глобальный GameService');
-console.log('📋 Размер внешнего хранилища игр:', games.size);
+console.log('📋 Размер внешнего хранилища игр:', games ? games.size : 0);
+console.log('🔍 Внешнее хранилище игр доступно:', !!games);
 
 // Создание новой игры
 const createGame = async (req, res) => {
@@ -15,6 +16,12 @@ const createGame = async (req, res) => {
 
     if (!name || !playerName) {
       return res.status(400).json({ error: 'Необходимо указать имя игры и имя игрока' });
+    }
+
+    // Проверяем, что глобальные объекты инициализированы
+    if (!gameService || !games || !players) {
+      console.error('❌ Глобальные объекты не инициализированы');
+      return res.status(500).json({ error: 'Сервис не инициализирован' });
     }
 
     // Проверяем, существует ли уже игра с таким именем

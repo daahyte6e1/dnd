@@ -155,10 +155,7 @@ const GamePage = () => {
 
     try {
       console.log('Попытка подключения к WebSocket...');
-      await connect();
-      
-      // Получаем актуальное состояние socket после подключения
-      const { socket: currentSocket } = useWebSocketStore.getState();
+      const currentSocket = await connect();
       console.log('WebSocket подключен, аутентифицируемся...', !!currentSocket);
       
       if (!currentSocket) {

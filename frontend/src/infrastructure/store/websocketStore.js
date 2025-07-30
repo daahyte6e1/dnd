@@ -12,7 +12,7 @@ const useWebSocketStore = create((set, get) => ({
     const { socket, isConnected } = get();
     
     if (socket && isConnected) {
-      return;
+      return socket;
     }
 
     set({ isConnecting: true, error: null });
@@ -32,7 +32,7 @@ const useWebSocketStore = create((set, get) => ({
             error: null 
           });
           console.log('WebSocket подключен к серверу');
-          resolve();
+          resolve(newSocket);
         });
 
         newSocket.on('disconnect', () => {

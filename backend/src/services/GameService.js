@@ -30,6 +30,9 @@ class GameService {
     try {
       const { name, description, maxPlayers, isPrivate } = gameData;
       
+      console.log('🎮 Создание игры в GameService:', { name, description, maxPlayers, isPrivate });
+      console.log('🔍 Внешнее хранилище игр доступно:', !!this.externalGames);
+      
       // Проверяем уникальность имени игры
       if (this.externalGames && this.externalGames.has(name)) {
         throw new Error('Игра с таким именем уже существует');
@@ -55,6 +58,10 @@ class GameService {
       // Добавляем игру во внешнее хранилище
       if (this.externalGames) {
         this.externalGames.set(name, game);
+        console.log('✅ Игра добавлена во внешнее хранилище:', name);
+        console.log('📋 Размер внешнего хранилища после добавления:', this.externalGames.size);
+      } else {
+        console.log('⚠️ Внешнее хранилище недоступно, игра не сохранена');
       }
 
       // Также добавляем в активные игры для совместимости

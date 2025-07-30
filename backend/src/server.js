@@ -17,18 +17,6 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Подключаем маршруты
-const authRoutes = require('./routes/auth');
-const gameRoutes = require('./routes/games');
-
-app.use('/api/auth', authRoutes);
-app.use('/api/games', gameRoutes);
-
-// Базовый route
-app.get('/', (req, res) => {
-  res.json({ message: 'DnD Backend API работает!' });
-});
-
 // Создаем общее хранилище игр
 const games = new Map();
 const players = new Map();
@@ -49,6 +37,22 @@ global.webSocketService = webSocketService;
 global.gameService = gameService;
 global.games = games;
 global.players = players;
+
+console.log('🚀 Инициализация сервисов завершена');
+console.log('📋 Размер внешнего хранилища игр:', games.size);
+console.log('🔍 Внешнее хранилище игр доступно:', !!games);
+
+// Подключаем маршруты
+const authRoutes = require('./routes/auth');
+const gameRoutes = require('./routes/games');
+
+app.use('/api/auth', authRoutes);
+app.use('/api/games', gameRoutes);
+
+// Базовый route
+app.get('/', (req, res) => {
+  res.json({ message: 'DnD Backend API работает!' });
+});
 
 // Обработка ошибок
 app.use((err, req, res, next) => {
