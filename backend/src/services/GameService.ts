@@ -283,8 +283,12 @@ class GameService {
       const character = await Character.create({
         playerId: player.id,
         name: playerData.name,
-        characterClass: 'fighter',
+        characterClass: 'fighter' as any,
         level: 1,
+        race: 'human' as any,
+        background: 'soldier' as any,
+        alignment: 'Neutral',
+        experience: 0,
         stats: {
           strength: 15,
           dexterity: 12,

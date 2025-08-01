@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import GameService from '../services/GameService';
 import User from '../models/User'; // Added import for User model
+import CharacterCreationService from '../services/CharacterCreationService';
 
 // Используем глобальный GameService
 declare global {
@@ -388,14 +389,17 @@ const createClassicCharacter = async (req: Request<{ userId: string }>, res: Res
     const character = await global.gameService.models.Character.create({
       playerId: player.id,
       name,
-      characterClass,
+      characterClass: characterClass as any,
       level: 1,
+      race: 'human' as any,
+      background: 'soldier' as any,
+      alignment: 'Neutral',
+      experience: 0,
       stats: defaultStats,
       hp: 12,
       maxHp: 12,
       position: { x: 0, y: 0 },
       inventory: [],
-      experience: 0,
       initiative: 0,
       isAlive: true
     });
@@ -406,7 +410,262 @@ const createClassicCharacter = async (req: Request<{ userId: string }>, res: Res
   }
 };
 
-export {
+// Удаление персонажа пользователя
+const deleteCharacter = async (req: Request<{ userId: string; characterId: string }>, res: Response): Promise<void> => {
+  try {
+    const { userId, characterId } = req.params;
+    
+    if (!userId || !characterId) {
+      res.status(400).json({ error: 'Не переданы userId или characterId' });
+      return;
+    }
+
+    // Находим Player для пользователя
+    const player = await global.gameService.models.Player.findOne({ where: { userId } });
+    if (!player) {
+      res.status(404).json({ error: 'Пользователь не найден' });
+      return;
+    }
+
+    // Находим и удаляем персонажа
+    const character = await global.gameService.models.Character.findOne({
+      where: { 
+        id: characterId,
+        playerId: player.id 
+      }
+    });
+
+    if (!character) {
+      res.status(404).json({ error: 'Персонаж не найден' });
+      return;
+    }
+
+    await character.destroy();
+    res.json({ message: 'Персонаж успешно удален' });
+  } catch (error) {
+    console.error('Ошибка удаления персонажа:', error);
+    res.status(500).json({ error: 'Ошибка при удалении персонажа' });
+  }
+};
+
+// Получение данных для создания персонажа
+const getCharacterCreationData = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const creationData = CharacterCreationService.getCreationData();
+    res.json(creationData);
+  } catch (error) {
+    console.error('Ошибка получения данных для создания персонажа:', error);
+    res.status(500).json({ error: 'Ошибка при получении данных' });
+  }
+};
+
+// Генерация характеристик с фиксированными значениями
+const rollAbilityScores = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { method = 'fixed' } = req.body;
+    
+    if (method === 'random') {
+      // Генерация случайных характеристик
+      const randomScores = CharacterCreationService.rollAbilityScores();
+      res.json({ scores: randomScores, method: 'random' });
+    } else {
+      // Использование фиксированных значений (по умолчанию)
+      const fixedScores = CharacterCreationService.getAbilityScores();
+      res.json({ scores: fixedScores, method: 'fixed' });
+    }
+  } catch (error) {
+    console.error('Ошибка генерации характеристик:', error);
+    res.status(500).json({ error: 'Ошибка при генерации характеристик' });
+  }
+};
+
+
+
+// Создание персонажа по правилам D&D 5e
+const createDnDCharacter = async (req: Request<{ userId: string }>, res: Response): Promise<void> => {
+  try {
+    const { userId } = req.params;
+    const characterData = req.body;
+
+    if (!userId) {
+      res.status(400).json({ error: 'Не передан userId' });
+      return;
+    }
+
+    // Проверяем обязательные поля
+    const requiredFields = ['name', 'race', 'characterClass', 'background', 'abilityScores', 'skillChoices', 'alignment'];
+    for (const field of requiredFields) {
+      if (!characterData[field]) {
+        res.status(400).json({ error: `Не передано поле: ${field}` });
+        return;
+      }
+    }
+
+    // Находим или создаем Player для пользователя
+    let player = await global.gameService.models.Player.findOne({ where: { userId } });
+    if (!player) {
+      player = await global.gameService.models.Player.create({ 
+        userId, 
+        gameId: null, 
+        isReady: false, 
+        isOnline: false, 
+        lastSeen: new Date() 
+      });
+    }
+
+    // Создаем персонажа с использованием сервиса
+    const character = await CharacterCreationService.createCharacterStepByStep({
+      playerId: player.id,
+      name: characterData.name,
+      race: characterData.race,
+      characterClass: characterData.characterClass,
+      background: characterData.background,
+      abilityScores: characterData.abilityScores,
+      skillChoices: characterData.skillChoices,
+      alignment: characterData.alignment,
+      appearance: characterData.appearance || {},
+      personality: characterData.personality || {},
+      backstory: characterData.backstory || ''
+    });
+
+    res.status(201).json({ 
+      message: 'Персонаж успешно создан',
+      character 
+    });
+  } catch (error: any) {
+    console.error('Ошибка создания персонажа D&D:', error);
+    res.status(500).json({ error: error.message || 'Ошибка при создании персонажа' });
+  }
+};
+
+// Новый эндпоинт для валидации выбора навыков
+const validateSkillChoices = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { characterClass, background, skillChoices } = req.body;
+
+    if (!characterClass || !background || !skillChoices) {
+      res.status(400).json({ error: 'Необходимо указать класс, предысторию и выбранные навыки' });
+      return;
+    }
+
+    const validation = CharacterCreationService.validateSkillChoices(characterClass, background, skillChoices);
+    res.json(validation);
+  } catch (error) {
+    console.error('Ошибка валидации навыков:', error);
+    res.status(500).json({ error: 'Ошибка валидации навыков' });
+  }
+};
+
+// Новый эндпоинт для получения доступных навыков класса
+const getAvailableClassSkills = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { characterClass, background } = req.query;
+
+    if (!characterClass || !background) {
+      res.status(400).json({ error: 'Необходимо указать класс и предысторию' });
+      return;
+    }
+
+    const skillsInfo = CharacterCreationService.getAvailableClassSkills(
+      characterClass as string, 
+      background as string
+    );
+    res.json(skillsInfo);
+  } catch (error) {
+    console.error('Ошибка получения доступных навыков:', error);
+    res.status(500).json({ error: 'Ошибка получения доступных навыков' });
+  }
+};
+
+// Новый эндпоинт для получения рекомендаций по навыкам
+const getSkillRecommendations = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { characterClass, background } = req.query;
+
+    if (!characterClass || !background) {
+      res.status(400).json({ error: 'Необходимо указать класс и предысторию' });
+      return;
+    }
+
+    const recommendations = CharacterCreationService.getSkillRecommendations(
+      characterClass as string, 
+      background as string
+    );
+    res.json(recommendations);
+  } catch (error) {
+    console.error('Ошибка получения рекомендаций по навыкам:', error);
+    res.status(500).json({ error: 'Ошибка получения рекомендаций по навыкам' });
+  }
+};
+
+// Получение персонажа по ID
+const getCharacter = async (req: Request<{ characterId: string }>, res: Response): Promise<void> => {
+  try {
+    const { characterId } = req.params;
+    
+    if (!characterId) {
+      res.status(400).json({ error: 'Не передан characterId' });
+      return;
+    }
+
+    const character = await global.gameService.models.Character.findByPk(characterId);
+    
+    if (!character) {
+      res.status(404).json({ error: 'Персонаж не найден' });
+      return;
+    }
+
+    res.json({ character });
+  } catch (error) {
+    console.error('Ошибка получения персонажа:', error);
+    res.status(500).json({ error: 'Ошибка при получении персонажа' });
+  }
+};
+
+// Обновление персонажа
+const updateCharacter = async (req: Request<{ characterId: string }>, res: Response): Promise<void> => {
+  try {
+    const { characterId } = req.params;
+    const updateData = req.body;
+    
+    if (!characterId) {
+      res.status(400).json({ error: 'Не передан characterId' });
+      return;
+    }
+
+    const character = await global.gameService.models.Character.findByPk(characterId);
+    
+    if (!character) {
+      res.status(404).json({ error: 'Персонаж не найден' });
+      return;
+    }
+
+    // Обновляем только разрешенные поля
+    const allowedFields = [
+      'name', 'alignment', 'appearance', 'personality', 'backstory',
+      'inventory', 'equipment', 'weapons', 'armor', 'spells', 'money'
+    ];
+
+    const updateFields: any = {};
+    allowedFields.forEach(field => {
+      if (updateData[field] !== undefined) {
+        updateFields[field] = updateData[field];
+      }
+    });
+
+    await character.update(updateFields);
+    
+    res.json({ 
+      message: 'Персонаж успешно обновлен',
+      character 
+    });
+  } catch (error) {
+    console.error('Ошибка обновления персонажа:', error);
+    res.status(500).json({ error: 'Ошибка при обновлении персонажа' });
+  }
+};
+
+const gameController = {
   createGame,
   getGames,
   getGame,
@@ -418,5 +677,19 @@ export {
   getTileInfo,
   updateGameState,
   getUserCharacters,
-  createClassicCharacter
-}; 
+  createClassicCharacter,
+  deleteCharacter,
+  getCharacterCreationData,
+  rollAbilityScores,
+
+  createDnDCharacter,
+  getCharacter,
+  updateCharacter,
+  
+  // Новые эндпоинты для работы с навыками
+  validateSkillChoices,
+  getAvailableClassSkills,
+  getSkillRecommendations
+};
+
+export default gameController; 
